@@ -15,7 +15,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from model_cls import DGCNN_cls, PointNet2_cls
+from models import DGCNN_cls
 from util import cal_loss, IOStream
 import sklearn.metrics as metrics
 from torch.utils.tensorboard import SummaryWriter
