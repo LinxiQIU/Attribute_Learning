@@ -44,8 +44,8 @@ def train(args, io):
     
     if args.model == 'dgcnn':
         model = DGCNN_cls(args).to(device)
-    elif args.model == 'pointnet2':
-        model = PointNet2_cls(args).to(device)
+    # elif args.model == 'pointnet2':
+    #     model = PointNet2_cls(args).to(device)
     else:
         raise Exception('Not implemented')
     print(str(model))

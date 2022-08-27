@@ -72,8 +72,17 @@ class MotorAttribute(Dataset):
 if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
                           split='test')
-    train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=2, shuffle=True, drop_last=True)
+    train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     for data in train_dataloader:
-        print(data['point'].shape)
-        print(data['type'].shape)
+        # print(data['point'].shape)
+        # print(data['type'].shape)
+        # print(data['attribute'].shape)
+        t = data['type']
+        onehot = torch.zeros(t.shape[0], 5)
+        onehot.scatter_(1, t, 1.0)
+        print(onehot)
+            
+        # bs = t.size(0)
+        # one_hot = torch.nn.functional.one_hot(t, num_classes=5)
+        # print(one_hot)
         
