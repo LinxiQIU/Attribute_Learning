@@ -11,6 +11,8 @@ import os
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import torch
+import torch.nn.functional as F
+
 
 class MotorAttribute(Dataset):
     def __init__(self, root_dir, csv_file, split='train', npoints=2048, test_area='Validation'):
@@ -58,31 +60,23 @@ class MotorAttribute(Dataset):
         
         types = self.all_type[self.motor_idxs[index]]
         
-        attribute = self.all_attr[self.motor_idxs[index]]
+        attr = self.all_attr[self.motor_idxs[index]]
         
-        cover_bolt_num = self.all_bolt_num[self.motor_idxs[index]]
+        cbolt_num = self.all_bolt_num[self.motor_idxs[index]]
         n_points = point_set.shape[0]
         chosed = np.random.choice(n_points, self.npoints, replace=True)
         chosed_pc = point_set[chosed, :]
-        sample = {'point': chosed_pc, 'attribute': torch.Tensor(attribute), 
-                  'type': torch.Tensor(types), 'num': torch.Tensor(cover_bolt_num)}
-        return sample
+        # sample = {'point': chosed_pc, 'attribute': torch.Tensor(attr), 
+        #           'type': types, 'num': torch.Tensor(cbolt_num)}
+        # return sample
+        return chosed_pc, torch.Tensor(types), attr, cbolt_num
 
 
 if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
                           split='test')
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
-    for data in train_dataloader:
-        # print(data['point'].shape)
-        # print(data['type'].shape)
-        # print(data['attribute'].shape)
-        t = data['type']
-        onehot = torch.zeros(t.shape[0], 5)
-        onehot.scatter_(1, t, 1.0)
-        print(onehot)
-            
-        # bs = t.size(0)
-        # one_hot = torch.nn.functional.one_hot(t, num_classes=5)
-        # print(one_hot)
+    for p, t, a, n in train_dataloader:
+        print(p.shape)
+        print(t)
         

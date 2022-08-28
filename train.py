@@ -79,9 +79,8 @@ def train(args, io):
         model.train()
         train_pred = []
         train_true = []
-        for sample in train_dataloader:
-            data, label = sample['point'], sample['type']
-            data, label = data.to(device), label.to(device).squeeze()
+        for pc, ty, attr, num in train_dataloader:
+            data, label = pc.to(device), ty.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
             opt.zero_grad()
@@ -125,9 +124,9 @@ def train(args, io):
         model.eval()
         val_pred = []
         val_true = []
-        for sample in test_dataloader:
-            data, label = sample['point'], sample['type']
-            data, label = data.to(device), label.to(device).squeeze()
+        for pc, ty, attr, num in test_dataloader:
+            
+            data, label = pc.to(device), ty.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
             logits = model(data.float())

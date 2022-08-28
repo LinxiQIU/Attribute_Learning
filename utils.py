@@ -1,10 +1,3 @@
-"""
-@Author: bixuelei
-@Contact: bxueleibi@gmial.com
-@File: train_semseg.py
-@Time: 2022/1/10 7:49 PM
-"""
-
 
 import numpy as np
 import torch
