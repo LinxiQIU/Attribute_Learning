@@ -35,9 +35,9 @@ class MotorAttribute(Dataset):
             num_points_eachmotor.append(point_set.size)
             n = idx.split('_')
             attr_data = self.data[self.data['Nr.'].str.contains(n[1] + '_' + n[2])]
-            attr = np.array(attr_data.iloc[:, 3:]).astype('float')
-            ty = attr_data.iloc[:, 1].tolist()
-            num = attr_data.iloc[:, 2].tolist()
+            attr = np.array(attr_data.iloc[:, 3:]).astype('float32')
+            ty = np.array(attr_data.iloc[:, 1]).astype('int64')
+            num = np.array(attr_data.iloc[:, 2]).astype('int64')
             self.all_attr.append(attr)
             self.all_type.append(ty)
             self.all_bolt_num.append(num)
@@ -65,26 +65,21 @@ class MotorAttribute(Dataset):
         n_points = point_set.shape[0]
         chosed = np.random.choice(n_points, self.npoints, replace=True)
         chosed_pc = point_set[chosed, :]
-        # sample = {'point': chosed_pc, 'attribute': torch.Tensor(attr), 
-        #           'type': types, 'num': torch.Tensor(cbolt_num)}
-        # return sample
-        return chosed_pc, torch.Tensor(types), attr, torch.Tensor(cbolt_num)
+
+        return chosed_pc, types, attr, cbolt_num
 
 
 if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
                           split='test')
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
-    import torch.nn.functional as F
+    # import torch.nn.functional as F
     for p, t, a, n in train_dataloader:
-        # print(type(p), type())
-        # print(type(t))
-        # print(type(a))
-        # print(type(n))
-        ty = t.reshape(-1)
-        type_one_hot = F.one_hot(ty.long(), num_classes=5)
-        num_one_hot = F.one_hot(n.reshape(-1).long(), num_classes=7)
-        print(type_one_hot.shape, num_one_hot.shape)
+        print(type(p), type(t), type(a), type(n))    
+        # ty = t.reshape(-1)
+        # type_one_hot = F.one_hot(ty.long(), num_classes=5)
+        # num_one_hot = F.one_hot(n.reshape(-1).long(), num_classes=7)
+        # print(type_one_hot.shape, num_one_hot.shape)
         
         
         
