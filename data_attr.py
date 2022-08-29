@@ -68,7 +68,7 @@ class MotorAttribute(Dataset):
         # sample = {'point': chosed_pc, 'attribute': torch.Tensor(attr), 
         #           'type': types, 'num': torch.Tensor(cbolt_num)}
         # return sample
-        return chosed_pc, torch.Tensor(types), attr, cbolt_num
+        return chosed_pc, torch.Tensor(types), attr, torch.Tensor(cbolt_num)
 
 
 if __name__ == '__main__':
@@ -77,8 +77,10 @@ if __name__ == '__main__':
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     import torch.nn.functional as F
     for p, t, a, n in train_dataloader:
-        print(p.shape)
-        ty = t.reshape(-1)
-        ty_onehot = F.one_hot(ty.long(), num_classes=5)
-        print(ty_onehot)
+        # print(type(p))
+        # print(type(t))
+        # print(type(a))
+        print(type(n))
+        
+        
         
