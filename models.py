@@ -156,6 +156,7 @@ class DGCNN_net(nn.Module):
         n = self.conv7(n)
         
         x = torch.cat((x, l, n), dim=1)
+        x = x.view(batch_size, -1)
         x = F.leaky_relu(self.bn8(self.linear1(x)), negative_slope=0.2)
         x = self.dp1(x)
         x = F.leaky_relu(self.bn9(self.linear2(x)), negative_slope=0.2)
@@ -237,9 +238,9 @@ class DGCNN_cls(nn.Module):
 
 
 if __name__ == '__main__':
-    # from torchsummary import summary
+    from torchsummary import summary
     # help(summary)
     model = DGCNN_net()
-    # summary(model, (3, 1024), (5, 1), (7, 1), device='cuda')
+    summary(model, (3, 1024), (5, 1), (7, 1), device='cuda')
     print(model)
     

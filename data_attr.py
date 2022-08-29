@@ -77,10 +77,14 @@ if __name__ == '__main__':
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     import torch.nn.functional as F
     for p, t, a, n in train_dataloader:
-        # print(type(p))
+        # print(type(p), type())
         # print(type(t))
         # print(type(a))
-        print(type(n))
+        # print(type(n))
+        ty = t.reshape(-1)
+        type_one_hot = F.one_hot(ty.long(), num_classes=5)
+        num_one_hot = F.one_hot(n.reshape(-1).long(), num_classes=7)
+        print(type_one_hot.shape, num_one_hot.shape)
         
         
         
