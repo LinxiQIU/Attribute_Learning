@@ -82,7 +82,7 @@ def train(args, io):
             type_one_hot = F.one_hot(t.long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             opt.zero_grad()
-            pred_attr = model(data.float(), type_one_hot, num_one_hot)
+            pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
             loss = criterion(pred_attr.view(-1, 28), attr(-1, 28))
             loss.backward()
             opt.step()
@@ -117,7 +117,7 @@ def train(args, io):
             t = ty.reshape(-1)
             type_one_hot = F.one_hot(t.long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
-            pred_attr = model(data.float(), type_one_hot, num_one_hot)
+            pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
             loss = criterion(pred_attr.view(-1, 28), attr(-1, 28))
             count += batch_size
             val_loss += loss.item() * batch_size
