@@ -1,25 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Jun  5 20:01:12 2022
+Created on Sun Aug 26 20:18:31 2022
 
-@author: linxi Qiu
+@author: linxi
 """
-
 
 import os
 import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_cls
-from utils import cal_loss, IOStream
-import sklearn.metrics as metrics
+from models import DGCNN_net
+from utils import mean_loss, IOStream, normalize_data
 from torch.utils.tensorboard import SummaryWriter
+
+
 
 
 def _init_():
@@ -29,7 +30,6 @@ def _init_():
         os.makedirs('outputs/' + args.model + '/' + args.exp_name)
     if not os.path.exists('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/model'):
         os.makedirs('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/model')
-
 
 
 def train(args, io):
@@ -43,13 +43,7 @@ def train(args, io):
                                  shuffle=True, drop_last=False)
     device = torch.device('cuda' if args.cuda else 'cpu')
     
-    if args.model == 'dgcnn':
-        model = DGCNN_cls(args).to(device)
-    # elif args.model == 'pointnet2':
-    #     model = PointNet2_cls(args).to(device)
-    else:
-        raise Exception('Not implemented')
-    print(str(model))
+    model = DGCNN_net().to(device)
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPU!")
     
@@ -71,31 +65,30 @@ def train(args, io):
     
     print("Starting from scratch!")
     
-    criterion = cal_loss  
-    best_val_acc = 0
+    criterion = mean_loss
     for epoch in range(args.epochs):
         ####################
-        # Training
+        # Train
         ####################
         train_loss = 0.0
-        count = 0
+        count = 0.0
         model.train()
-        train_pred = []
-        train_true = []
         for pc, ty, attr, num in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
-            data, label = pc.to(device), ty.to(device).squeeze()
-            data = data.permute(0, 2, 1)
+            pc, ty, attr, num = pc.to(device), ty.to(device), attr.to(device), num.to(device)
+            pc = normalize_data(pc)
+            data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
+            t = ty.reshape(-1)
+            type_one_hot = F.one_hot(t.long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             opt.zero_grad()
-            logits = model(data.float())
-            loss = criterion(logits, label)
+            pred_attr = model(data.float(), type_one_hot, num_one_hot)
+            loss = criterion(pred_attr.view(-1, 28), attr(-1, 28))
             loss.backward()
             opt.step()
-            preds = logits.max(dim=1)[1]
             count += batch_size
             train_loss += loss.item() * batch_size
-            train_true.append(label.cpu().numpy())
-            train_pred.append(preds.detach().cpu().numpy())
+        
         if args.scheduler == 'cos':
             scheduler.step()
         elif args.scheduler == 'step':
@@ -105,104 +98,51 @@ def train(args, io):
                 for param_group in opt.param_groups:
                     param_group['lr'] = 1e-5
                     
-        train_true = np.concatenate(train_true)
-        train_pred = np.concatenate(train_pred)
-        outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
-                                                                                 train_loss*1.0/count,
-                                                                                 metrics.accuracy_score(
-                                                                                     train_true, train_pred),
-                                                                                 metrics.balanced_accuracy_score(
-                                                                                     train_true, train_pred))    
-            
+        outstr = 'Train %d, loss: %.6f' % (epoch, train_loss)
         io.cprint(outstr)
         writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
-        writer.add_scalar('Accuracy/train acc', metrics.accuracy_score(train_true, train_pred), epoch)
-        writer.add_scalar('Average Accuracy/train avg acc', metrics.balanced_accuracy_score(train_true, train_pred), epoch)
+        
         ####################
         # Validation
         ####################
         val_loss = 0.0
         count = 0.0
         model.eval()
-        val_pred = []
-        val_true = []
-        for pc, ty, attr, num in test_dataloader:
-            
-            data, label = pc.to(device), ty.to(device).squeeze()
-            data = data.permute(0, 2, 1)
+        for pc, ty, attr, num in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
+            pc, ty, attr, num = pc.to(device), ty.to(device), attr.to(device), num.to(device)
+            pc = normalize_data(pc)
+            data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            logits = model(data.float())
-            loss = criterion(logits, label)
-            preds = logits.max(dim=1)[1]
+            t = ty.reshape(-1)
+            type_one_hot = F.one_hot(t.long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+            pred_attr = model(data.float(), type_one_hot, num_one_hot)
+            loss = criterion(pred_attr.view(-1, 28), attr(-1, 28))
             count += batch_size
             val_loss += loss.item() * batch_size
-            val_true.append(label.cpu().numpy())
-            val_pred.append(preds.detach().cpu().numpy())
-        val_true = np.concatenate(val_true)
-        val_pred = np.concatenate(val_pred)
-        val_acc = metrics.accuracy_score(val_true, val_pred)
-        avg_per_class_acc = metrics.balanced_accuracy_score(val_true, val_pred)
-        outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f' % (epoch,
-                                                                              val_loss*1.0/count,
-                                                                              val_acc,
-                                                                              avg_per_class_acc)
+        
+        outstr = 'Train %d, loss: %.6f' % (epoch, train_loss)
         io.cprint(outstr)
-        writer.add_scalar('Loss/val loss', val_loss*1.0/count, epoch)
-        writer.add_scalar('Accuracy/val acc', val_acc, epoch)
-        writer.add_scalar('Average Accuracy/val avg acc', avg_per_class_acc, epoch)
-        if val_acc >= best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), 'outputs/%s/%s/%s/model.t7' % (args.model, args.exp_name, args.change))
+        # writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
+        writer.add_scalar('Loss/test loss', val_loss*1.0/count, epoch)
+        
 
-
-# def test(args, io):
-#     test_dataloader = DataLoader(MotorDataset(root=args.root, split='train', 
-#                                            num_points=args.num_points, 
-#                                            test_area=args.validation_symbol),
-#                               num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
-
-#     device = torch.device("cuda" if args.cuda else "cpu")
-
-#     if args.model == 'dgcnn':
-#         model = DGCNN_cls(args).to(device)
-
-#     model = nn.DataParallel(model)
-#     model.load_state_dict(torch.load(args.model_path))
-#     model = model.eval()
-#     test_acc = 0.0
-#     count = 0.0
-#     test_true = []
-#     test_pred = []
-
-#     for data, label in test_loader:
-#         data, label = data.to(device), label.to(device).squeeze()
-#         data = data.permute(0, 2, 1)
-#         batch_size = data.size()[0]
-#         logits = model(data.float())
-#         preds = logits.max(dim=1)[1]
-#         test_true.append(label.cpu().numpy())
-#         test_pred.append(preds.detach().cpu().numpy())
-#     test_true = np.concatenate(test_true)
-#     test_pred = np.concatenate(test_pred)
-#     test_acc = metrics.accuracy_score(test_true, test_pred)
-#     avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
-
-#     outstr = 'Test :: test acc: %.6f, test avg acc: %.6f'%(test_acc, avg_per_class_acc)
-#     io.cprint(outstr)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Point Cloud Classification')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Multi Attributes Regression')
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
                         help='Name of the experiment')
     parser.add_argument('--change', type=str, default='hh', metavar='N',
                         help='explict parameters in experiment')
     parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
-                        choices=['dgcnn', 'pointnet2'],
-                        help='Model to use, [dgcnn, pct]')
-    parser.add_argument('--root', type=str, metavar='N',default='E:\\dataset',
+                        choices=['dgcnn'],
+                        help='Model to use, [dgcnn]')
+    parser.add_argument('--root', type=str, metavar='N',default='E:\\dataset1000',
                         help='folder of dataset')
+    parser.add_argument('--csv', type=str, default='E:\\data\\motor_attr.csv',
+                        help='moter attributes')
+    parser.add_argument('--mask', type=str, default='E:\\data\\attr_mask',
+                        help='attributes mask')
     parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
@@ -256,11 +196,5 @@ if __name__ == '__main__':
     
     if not args.eval:
         train(args, io)
-    # else:
-    #     test(args, io)
-        
-        
-        
-        
-        
+            
         

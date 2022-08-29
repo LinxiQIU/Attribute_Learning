@@ -11,7 +11,6 @@ import os
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import torch
-import torch.nn.functional as F
 
 
 class MotorAttribute(Dataset):
@@ -76,7 +75,10 @@ if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
                           split='test')
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
+    import torch.nn.functional as F
     for p, t, a, n in train_dataloader:
         print(p.shape)
-        print(t)
+        ty = t.reshape(-1)
+        ty_onehot = F.one_hot(ty.long(), num_classes=5)
+        print(ty_onehot)
         
