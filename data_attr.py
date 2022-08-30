@@ -14,11 +14,12 @@ import torch
 
 
 class MotorAttribute(Dataset):
-    def __init__(self, root_dir, csv_file, split='train', npoints=2048, test_area='Validation'):
+    def __init__(self, root_dir, csv_file, mask_file, split='train', npoints=2048, test_area='Validation'):
         super().__init__()
         self.root_dir = root_dir
         self.npoints = npoints
         self.data = pd.read_csv(csv_file)
+        masks = pd.read_csv(mask_file)
         motor_ls = sorted(os.listdir(root_dir))
         if split == 'train':
             motor_ids = [motor for motor in motor_ls if '{}'.format(test_area) not in motor]
@@ -28,12 +29,15 @@ class MotorAttribute(Dataset):
         self.all_attr = []
         self.all_type = []
         self.all_bolt_num = []
+        self.all_mask = []
         num_points_eachmotor= []
         for idx in tqdm(motor_ids, total=len(motor_ids)):
             point_set = np.load(os.path.join(root_dir, idx))[:, 0:3]
             self.all_points.append(point_set)
             num_points_eachmotor.append(point_set.size)
             n = idx.split('_')
+            masks_data = masks[masks['Nr.'].str.contains(n[1] + '_' + n[2])]
+            mask = np.array(masks_data.iloc[:, 1:]).astype('float32')
             attr_data = self.data[self.data['Nr.'].str.contains(n[1] + '_' + n[2])]
             attr = np.array(attr_data.iloc[:, 3:]).astype('float32')
             ty = np.array(attr_data.iloc[:, 1]).astype('int64')
@@ -41,6 +45,7 @@ class MotorAttribute(Dataset):
             self.all_attr.append(attr)
             self.all_type.append(ty)
             self.all_bolt_num.append(num)
+            self.all_mask.append(mask)
         
         
         sample_prob = num_points_eachmotor / np.sum(num_points_eachmotor)
@@ -62,20 +67,26 @@ class MotorAttribute(Dataset):
         attr = self.all_attr[self.motor_idxs[index]]
         
         cbolt_num = self.all_bolt_num[self.motor_idxs[index]]
+        
+        mask = self.all_mask[self.motor_idxs[index]]
+        
         n_points = point_set.shape[0]
         chosed = np.random.choice(n_points, self.npoints, replace=True)
         chosed_pc = point_set[chosed, :]
 
-        return chosed_pc, types, attr, cbolt_num
+        return chosed_pc, types, attr, cbolt_num, mask
 
 
 if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
-                          split='test')
+                          mask_file='E:\\data\\attr_mask.csv', split='test')
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     # import torch.nn.functional as F
-    for p, t, a, n in train_dataloader:
-        print(type(p), type(t), type(a), type(n))    
+    # print(len(train_dataloader))
+    for p, t, a, n, m in train_dataloader:
+        print(t, m)
+        # print(len(train_dataloader))
+    #     # print(type(p), type(t), type(a), type(n))    
         # ty = t.reshape(-1)
         # type_one_hot = F.one_hot(ty.long(), num_classes=5)
         # num_one_hot = F.one_hot(n.reshape(-1).long(), num_classes=7)

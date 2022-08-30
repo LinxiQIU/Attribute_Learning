@@ -29,9 +29,9 @@ def cal_loss(pred, gold, smoothing=True):
 def mean_loss(pred, target, mask=None):
     mse_loss = torch.nn.MSELoss(reduction='none')
     loss = mse_loss(pred, target)
-    loss = torch.sum(loss, dim=1)
+    # loss = torch.sum(loss, dim=1)
     if mask is not None:
-        mask = torch.flatten(mask)
+        # mask = torch.flatten(mask)
         loss = torch.sum(loss * mask) / torch.sum(mask)
     return loss
 

@@ -157,9 +157,9 @@ class DGCNN_net(nn.Module):
         
         x = torch.cat((x, l, n), dim=1)
         x = x.view(batch_size, -1)
-        x = F.leaky_relu(self.bn8(self.linear1(x)), negative_slope=0.2)
+        x = F.relu(self.bn8(self.linear1(x)))
         x = self.dp1(x)
-        x = F.leaky_relu(self.bn9(self.linear2(x)), negative_slope=0.2)
+        x = F.relu(self.bn9(self.linear2(x)))
         x = self.dp2(x)
         x = self.linear3(x)
                                  

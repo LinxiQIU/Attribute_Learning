@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import numpy as np
+# import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -33,11 +33,11 @@ def _init_():
 
 
 def train(args, io):
-    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', 
+    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
                                 split='train', test_area=args.validation_symbol)
     train_dataloader = DataLoader(train_data, num_workers=8, batch_size=args.batch_size,
                                   shuffle=True, drop_last=True)
-    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv',
+    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
                                split='test', test_area=args.validation_symbol)
     test_dataloader = DataLoader(test_data, num_workers=8, batch_size=args.test_batch_size,
                                  shuffle=True, drop_last=False)
@@ -73,8 +73,8 @@ def train(args, io):
         train_loss = 0.0
         count = 0.0
         model.train()
-        for pc, ty, attr, num in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
-            pc, ty, attr, num = pc.to(device), ty.to(device), attr.to(device), num.to(device)
+        for pc, ty, attr, num, mask in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
+            pc, ty, attr, num, mask = pc.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -83,7 +83,7 @@ def train(args, io):
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             opt.zero_grad()
             pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
-            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28)).mean()
+            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
             loss.backward()
             opt.step()
             count += batch_size
@@ -98,7 +98,7 @@ def train(args, io):
                 for param_group in opt.param_groups:
                     param_group['lr'] = 1e-5
                     
-        outstr = 'Train %d, loss: %.6f' % (epoch, train_loss)
+        outstr = 'Train %d, Loss: %.6f' % (epoch, train_loss*1.0/count)
         io.cprint(outstr)
         writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
@@ -109,8 +109,8 @@ def train(args, io):
         val_loss = 0.0
         count = 0.0
         model.eval()
-        for pc, ty, attr, num in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
-            pc, ty, attr, num = pc.to(device), ty.to(device), attr.to(device), num.to(device)
+        for pc, ty, attr, num, m in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
+            pc, ty, attr, num, m = pc.to(device), ty.to(device), attr.to(device), num.to(device), m.to(device)
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -118,13 +118,13 @@ def train(args, io):
             type_one_hot = F.one_hot(t.long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
-            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28)).mean()
+            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
             count += batch_size
             val_loss += loss.item() * batch_size
         
-        outstr = 'Train %d, loss: %.6f' % (epoch, train_loss)
+        outstr = 'Test %d, Loss: %.6f' % (epoch, val_loss*1.0/count)
         io.cprint(outstr)
-        # writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
+
         writer.add_scalar('Loss/test loss', val_loss*1.0/count, epoch)
         
 
