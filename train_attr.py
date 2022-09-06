@@ -136,6 +136,7 @@ def train(args, io):
             opt2.step()
             count += batch_size
             train_loss += loss2.item() * batch_size
+            
             pred_np = pred_attr.detach().cpu().numpy()
             attr_np = attr.cpu().numpy()
             train_pred_profile.append(np.array([x[:4] for x in pred_np]).reshape(-1))   # Size(16*4=64)

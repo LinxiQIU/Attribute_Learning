@@ -367,10 +367,11 @@ class Attribute(nn.Module):
         self.linear3 = nn.Linear(256, 28)
         
     def forward(self, x, t, n):
+        batch_size = x.size(0)
         x = x.max(dim=-1, keepdim=True)[0]
-        t = t.view(16, -1, 1)
+        t = t.view(batch_size, -1, 1)
         t = self.conv1(t)
-        n = n.view(16, -1, 1)
+        n = n.view(batch_size, -1, 1)
         n = self.conv2(n)
         
         x = torch.cat((x, t, n), dim=1)
