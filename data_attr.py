@@ -26,15 +26,19 @@ class MotorAttribute(Dataset):
         else:
             motor_ids = [motor for motor in motor_ls if '{}'.format(test_area) in motor]
         self.all_points = []
+        self.all_labels = []
         self.all_attr = []
         self.all_type = []
         self.all_bolt_num = []
         self.all_mask = []
         num_points_eachmotor= []
         for idx in tqdm(motor_ids, total=len(motor_ids)):
-            point_set = np.load(os.path.join(root_dir, idx))[:, 0:3]
+            point_data = np.load(os.path.join(root_dir, idx))
+            point_set = point_data[:, 0:3]
+            point_label = point_data[:, 6]
             self.all_points.append(point_set)
-            num_points_eachmotor.append(point_set.size)
+            self.all_labels.append(point_label)
+            num_points_eachmotor.append(point_set.shape[0])
             n = idx.split('_')
             masks_data = masks[masks['Nr.'].str.contains(n[1] + '_' + n[2])]
             mask = np.array(masks_data.iloc[:, 1:]).astype('float32')
@@ -62,6 +66,8 @@ class MotorAttribute(Dataset):
     def __getitem__(self, index):
         point_set = self.all_points[self.motor_idxs[index]]
         
+        labels = self.all_labels[self.motor_idxs[index]]
+        
         types = self.all_type[self.motor_idxs[index]]
         
         attr = self.all_attr[self.motor_idxs[index]]
@@ -73,8 +79,9 @@ class MotorAttribute(Dataset):
         n_points = point_set.shape[0]
         chosed = np.random.choice(n_points, self.npoints, replace=True)
         chosed_pc = point_set[chosed, :]
+        chosed_labels = labels[chosed]
 
-        return chosed_pc, types, attr, cbolt_num, mask
+        return chosed_pc, chosed_labels, types, attr, cbolt_num, mask
 
 
 if __name__ == '__main__':
@@ -83,8 +90,8 @@ if __name__ == '__main__':
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     # import torch.nn.functional as F
     # print(len(train_dataloader))
-    for p, t, a, n, m in train_dataloader:
-        print(t, m)
+    for p, l, t, a, n, m in train_dataloader:
+        print(type(m))
         # print(len(train_dataloader))
     #     # print(type(p), type(t), type(a), type(n))    
         # ty = t.reshape(-1)

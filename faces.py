@@ -10,13 +10,25 @@ import numpy as np
 import os
 import re
 import torch
+import math
 from torch.utils.data import Dataset
 import csv
 # from models import DGCNN_net
 # from util import IOStream
 # from torch.utils.tensorboard import SummaryWriter
 
+def rotate_z(pos, angle):
+    ro_mat =  np.array([[math.cos(angle), -math.sin(angle), 0.0],
+                        [math.sin(angle), math.cos(angle), 0.0],
+                        [0.0, 0.0, 1.0]])
+    pos_new = ro_mat.dot(pos.T)
+    return pos_new
 
+def swap(ls):
+    x = -1 * ls[0]
+    ls[0] = ls[1]
+    ls[1] = x
+    return ls
 
 def get_bolt_pos(data, idx):
     bolt_ls = data.iloc[:, 7].tolist()
@@ -30,6 +42,25 @@ def get_bolt_pos(data, idx):
         bolt_pos.extend(ls[36:39])
     elif len(ls) == 36:
         bolt_pos.extend(ls[30:33])
+        bolt_pos.extend([0.0, 0.0, 0.0])
+    elif len(ls) == 30:
+        bolt_pos.extend([0.0, 0.0, 0.0])
+        bolt_pos.extend([0.0, 0.0, 0.0])
+    return bolt_pos
+
+
+def get_ro_bolt_pos(data, idx):
+    bolt_ls = data.iloc[:, 7].tolist()
+    ls = re.findall(r"[+-]?\d+\.?\d*", bolt_ls[idx])
+    ls = [float(x) for x in ls]
+    bolt_pos = swap(ls[12:15])    
+    bolt_pos.extend(swap(ls[18:21]))
+    bolt_pos.extend(swap(ls[24:27]))
+    if len(ls) == 42:
+        bolt_pos.extend(swap(ls[30:33]))
+        bolt_pos.extend(swap(ls[36:39]))
+    elif len(ls) == 36:
+        bolt_pos.extend(swap(ls[30:33]))
         bolt_pos.extend([0.0, 0.0, 0.0])
     elif len(ls) == 30:
         bolt_pos.extend([0.0, 0.0, 0.0])
@@ -102,72 +133,74 @@ dict_bolt = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}
 #     print(mask)
 
 
-root_dir = 'E:\\dataset1000'
-motor_ls = sorted(os.listdir(root_dir))
-motor_ids = [motor for motor in motor_ls if '{}'.format('Validation') not in motor]
+# root_dir = 'E:\\dataset1000'
+# motor_ls = sorted(os.listdir(root_dir))
+# motor_ids = [motor for motor in motor_ls if '{}'.format('Validation') not in motor]
 
-# def create_csv(csv_path):
-#     if not os.path.exists(csv_path):
-#         os.makedirs(csv_path)
-#     csv_path = csv_path + '/motor_attr.csv'
-#     with open(csv_path, 'a+', newline = '') as f:
-#         csv_writer = csv.writer(f)
-#         head = ["Nr.", "Type", "bolt_num", "BL", "sBL", "dia_1", "dia_2", "gear1_x", "gear1_y", "gear1_z",
-#                 "gear2_x", "gear2_y", "gear2_z", "bolt1_x", "bolt1_y", "bolt1_z", "bolt2_x", "bolt2_y", "bolt2_z",
-#                 "bolt3_x", "bolt3_y", "bolt3_z", "bolt4_x", "bolt4_y", "bolt4_z", "bolt5_x", "bolt5_y", "bolt5_z",
-#                 "euler_x", "euler_y", "euler_z"]
-#         csv_writer.writerow(head)
-       
-data = pd.read_csv('E:\\data\\motor_attr.csv')
-attr_ls = []
-type_ls = []
-num_ls = []
-for i, idx in enumerate(motor_ids):
-# idx = 'Validation_TypeA0_0001_cuboid'
-    # print(idx)
-    n = idx.split('_')
-    # print(n[1] + '_' + n[2])
-    attr = data[data['Nr.'].str.contains(n[1] + '_' + n[2])]
-    t = attr.iloc[:, 1].tolist()
-    num = attr.iloc[:, 2].tolist()
-    attr_data = attr.iloc[:, 3:]
-    # print(attr_data)
-    attr_data = np.array(attr_data).astype('float')
-    # print(attr_data)
-    # print(attr_data)
-    attr_ls.append(attr_data)
-    type_ls.append(t)
-    num_ls.append(num)
-print(torch.Tensor(attr_ls[0]))
-print(torch.Tensor(type_ls)[0])
+def create_csv(csv_path):
+    if not os.path.exists(csv_path):
+        os.makedirs(csv_path)
+    csv_path = csv_path + '/motor_attr_1.csv'
+    with open(csv_path, 'a+', newline = '') as f:
+        csv_writer = csv.writer(f)
+        head = ["Nr.", "Type", "bolt_num", "BL", "sBL", "dia_1", "dia_2", "gear1_x", "gear1_y", "gear1_z",
+                "gear2_x", "gear2_y", "gear2_z", "bolt1_x", "bolt1_y", "bolt1_z", "bolt2_x", "bolt2_y", "bolt2_z",
+                "bolt3_x", "bolt3_y", "bolt3_z", "bolt4_x", "bolt4_y", "bolt4_z", "bolt5_x", "bolt5_y", "bolt5_z",
+                "rotation_x", "rotation_y", "rotation_z"]
+        csv_writer.writerow(head)
+
+
+
+# data = pd.read_csv('E:\\data\\motor_attr.csv')
+# # print(len(data))
+# for idx in range(len(data)):
+#     ro_data = data[data['Type'])]
+        
+    
+# attr_ls = []
+# type_ls = []
+# num_ls = []
+# for i, idx in enumerate(motor_ids):
+# # idx = 'Validation_TypeA0_0001_cuboid'
+#     # print(idx)
+#     n = idx.split('_')
+#     # print(n[1] + '_' + n[2])
+#     attr = data[data['Nr.'].str.contains(n[1] + '_' + n[2])]
+#     t = attr.iloc[:, 1].tolist()
+#     num = attr.iloc[:, 2].tolist()
+#     attr_data = attr.iloc[:, 3:]
+#     # print(attr_data)
+#     attr_data = np.array(attr_data).astype('float')
+#     # print(attr_data)
+#     # print(attr_data)
+#     attr_ls.append(attr_data)
+#     type_ls.append(t)
+#     num_ls.append(num)
+# print(torch.Tensor(attr_ls[0]))
+# print(torch.Tensor(type_ls)[0])
 # print(torch.Tensor(num_ls))
 
-# create_csv('E:\\data')
-# for idx in range(1000):
-#     name = data.iloc[:, 0].tolist()[idx]
-#     motor_ls = [name]
-#     t = dict_type[name.split('_')[0]]
-#     motor_ls.extend([t])
-#     num_bolt = data.iloc[:, 8].tolist()[idx]
-#     motor_ls.extend([dict_bolt[num_bolt - 2]])
-#     motor_ls.extend(get_length(data, idx))
-#     motor_ls.extend(get_dia(data, idx))
-#     motor_ls.extend(get_gear_xyz(data, idx))
-#     motor_ls.extend(get_bolt_pos(data, idx))
-#     motor_ls.extend(get_motor_euler(data, idx))
+create_csv('E:\\data')
+for idx in range(1000):
+    name = data.iloc[:, 0].tolist()[idx]
+    motor_ls = [name]
+    t = dict_type[name.split('_')[0]]
+    motor_ls.extend([t])
+    num_bolt = data.iloc[:, 8].tolist()[idx]
+    motor_ls.extend([dict_bolt[num_bolt - 2]])
+    motor_ls.extend(get_length(data, idx))
+    motor_ls.extend(get_dia(data, idx))
+    motor_ls.extend(get_gear_xyz(data, idx))
+    if (t==0) or (t==1):
+        motor_ls.extend(get_bolt_pos(data, idx))
+    else:
+        motor_ls.extend(get_ro_bolt_pos(data, idx))
+    motor_ls.extend(get_motor_euler(data, idx))
 
-#     motor_ls = []
-#     name = data[:, 0].tolist()[idx]
-#     t = dict_type[name.split('_')[0]]
-#     motor_ls.extend(t)
-#     motor_ls.extend(name)
-#     num_bolt = data.iloc[:, 8].tolist()[idx]
-#     num_cover_bolt = dict_bolt[num_bolt - 2]
-
-    # path = 'E:\\data'
-    # with open(path + '\\motor_attr.csv', 'a+', newline='') as f:
-    #     csv_writer = csv.writer(f)
-    #     csv_writer.writerow(motor_ls)
+    path = 'E:\\data'
+    with open(path + '\\motor_attr_1.csv', 'a+', newline='') as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(motor_ls)
 
 # for idx in range(1000):
 #     name = data.iloc[:, 0].tolist()[idx]
@@ -232,31 +265,7 @@ class MotorAttribute(Dataset):
                   'type': torch.Tensor(types), 'num': torch.Tensor(num_cover_bolt)}
         return sample
                        
-# if __name__ == '__main__':
-#     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\Motor_1000\\motor_parameters.csv', 
-#                           split='train')
-#     test_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\Motor_1000\\motor_parameters.csv', 
-#                           split='test')
-#     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
-#     test_dataloader = torch.uitils.data.DataLoader(test_data, batch_size=16, shuffle=True, drop_last=False)
-#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     model = DGCNN_net()
-#     criterion = torch.nn.MSELoss().to(device)
-#     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, momentum=0.09)
-#     io = IOStream('output')
-#     for epoch in range(n_epochs=200):
-#         model.train()
-#         train_loss = 0
-        
-#         for i, data in enumerate(train_dataloader):
-#             inputs = data['point'].to(device)
-#             label = data['attribute'].to(device)
-#             optimizer.zero_grad()
-#             pred_attr = model(inputs)
-#             loss = criterion(pred_attr, label.unsqueeze(1).float())
-#             loss.backward()
-#             optimizer.step()
-#             train_loss += loss
+
         
         
         

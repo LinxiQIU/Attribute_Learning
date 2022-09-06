@@ -64,7 +64,7 @@ def index_points_neighbors(x, idx):
 
 
 
-def get_neighbors(x, k=20):
+def get_neighbors(x, k):
     """
     Input:
         points: input points data, [B, C, N]
@@ -95,8 +95,7 @@ class DGCNN_net(nn.Module):
         self.bn6 = nn.BatchNorm1d(64)
         self.bn7 = nn.BatchNorm1d(64)
         self.bn8 = nn.BatchNorm1d(512)
-        self.bn9 = nn.BatchNorm1d(256)
-        
+        self.bn9 = nn.BatchNorm1d(256)       
         self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
                                    self.bn1, 
                                    nn.LeakyReLU(negative_slope=0.2))
@@ -171,13 +170,11 @@ class DGCNN_cls(nn.Module):
         super(DGCNN_cls, self).__init__()
         # self.args = args
         self.k = 32
-
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
-        self.bn5 = nn.BatchNorm1d(1024)
-        
+        self.bn5 = nn.BatchNorm1d(1024)        
         self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
                                    self.bn1, 
                                    nn.LeakyReLU(negative_slope=0.2))
@@ -200,7 +197,14 @@ class DGCNN_cls(nn.Module):
         self.bn7 = nn.BatchNorm1d(256)
         self.dp2 = nn.Dropout(p=0.5)
         self.linear3 = nn.Linear(256, output_channels)
-
+        
+        self.fc1 = nn.Linear(1024, 512, bias=False)
+        self.bn8 = nn.BatchNorm1d(512)
+        self.dp3 = nn.Dropout(p=0.5)
+        self.fc2 = nn.Linear(512, 256)
+        self.bn9 = nn.BatchNorm1d(256)
+        self.dp4 = nn.Dropout(p=0.5)
+        self.fc3 = nn.Linear(256, 5)
        
     def forward(self, x):
         batch_size = x.size(0)
@@ -221,22 +225,165 @@ class DGCNN_cls(nn.Module):
         x = self.conv4(x)                       # (batch_size, 128*2, num_points, k) -> (batch_size, 256, num_points, k)
         x4 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 256, num_points, k) -> (batch_size, 256, num_points)
 
-        x = torch.cat((x1, x2, x3, x4), dim=1)  # (batch_size, 64+64+128+256, num_points)
+        x = torch.cat((x1, x2, x3, x4), dim=1)  # (batch_size, 64+64+128+256=512, num_points)
 
-        x = self.conv5(x)                       # (batch_size, 64+64+128+256, num_points) -> (batch_size, emb_dims, num_points)
+        x = self.conv5(x)                       # (batch_size, 64+64+128+256=512, num_points) -> (batch_size, emb_dims, num_points)
+        y = x.view(batch_size, -1)
+        y = F.leaky_relu(self.bn8(self.fc1(y)), negative_slope=0.2)
+        y = self.dp3(y)
+        y = F.leaky_relu(self.bn9(self.fc2(y)), negative_slope=0.2)
+        y = self.dp4(y)
+        y = self.fc3(y)
+        
         x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x = torch.cat((x1, x2), 1)              # (batch_size, emb_dims*2)
-
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2) # (batch_size, emb_dims*2) -> (batch_size, 512)
         x = self.dp1(x)
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2) # (batch_size, 512) -> (batch_size, 256)
         x = self.dp2(x)
         x = self.linear3(x)                                             # (batch_size, 256) -> (batch_size, output_channels)
         
+        return x, y   # x -> type classification, y -> cover bolt numbers
+
+
+class DGCNN_Core(nn.Module):
+    def __init__(self):
+        super(DGCNN_Core, self).__init__()
+        self.k = 32      
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.bn4 = nn.BatchNorm2d(64)
+        self.bn5 = nn.BatchNorm2d(64)
+        self.bn6 = nn.BatchNorm1d(1024)
+
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),     #6*64=384
+                                   self.bn1,            #2*64*2=256
+                                   nn.LeakyReLU(negative_slope=0.2))        #0
+        self.conv2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),    #64*64=4096
+                                   self.bn2,        #256
+                                   nn.LeakyReLU(negative_slope=0.2))        #0
+        self.conv3 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),      #128*64=8096
+                                   self.bn3,        #256
+                                   nn.LeakyReLU(negative_slope=0.2))        #0
+        self.conv4 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),        #64*64=4096
+                                   self.bn4,        #256
+                                   nn.LeakyReLU(negative_slope=0.2))        #0
+        self.conv5 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),      #64*64=4096
+                                   self.bn5,        #256
+                                   nn.LeakyReLU(negative_slope=0.2))        
+        self.conv6 = nn.Sequential(nn.Conv1d(192, 1024, kernel_size=1, bias=False),    #192*1024=196068
+                                   self.bn6,        #1024*2*2=4096
+                                   nn.LeakyReLU(negative_slope=0.2))
+    
+    def forward(self, x):
+        num_points = x.size(2)
+        
+        x = get_neighbors(x, k=self.k)         # (batch_size, 6, num_points) -> (batch_size, 6*2, num_points, k)
+        x = self.conv1(x)                      # (batch_size, 6*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv2(x)                      # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
+        x1 = x.max(dim=-1, keepdim=False)[0]
+        
+        x = get_neighbors(x1, k=self.k)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x2 = x.max(dim=-1, keepdim=False)[0]
+        
+        x = get_neighbors(x2, k=self.k)
+        x = self.conv5(x)
+        x3 = x.max(dim=-1, keepdim=False)[0]
+        
+        x = torch.cat((x1, x2, x3), dim=1)     # (batch_size, 64+64+64=192, num_points)
+        x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, emb_dims, num_points)
+        x = x4.max(dim=-1, keepdim=True)[0]
+        
+        x = x.repeat(1, 1, num_points)
+        x = torch.cat((x, x1, x2, x3), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
+        
+        return x, x4    # x -> pointweise feature for semantic segmentation, x4 -> 1024 feature vector
+
+
+class CLS_Semseg(nn.Module):
+    def __init__(self):
+        super(CLS_Semseg, self).__init__()
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.conv1 = nn.Sequential(nn.Conv1d(1216, 512, kernel_size=1, bias=False),         #1216*512=622592
+                                   self.bn1,        #2048
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, bias=False),      #512*256=131072
+                                   self.bn2,    #1024
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.dp1 = nn.Dropout(p=0.5)
+        self.conv3 = nn.Conv1d(256, 7, kernel_size=1, bias=False)   #256*6=1536
+        
+        self.linear1 = nn.Linear(1024*2, 512, bias=False)
+        self.bn9 = nn.BatchNorm1d(512)
+        self.dp2 = nn.Dropout(p=0.5)
+        self.linear2 = nn.Linear(512, 256)
+        self.bn10 = nn.BatchNorm1d(256)
+        self.dp3 = nn.Dropout(p=0.5)
+        self.linear3 = nn.Linear(256, 5)
+        
+    def forward(self, x, y):     # x (pointweise), y (1024)
+        batch_size = y.size(0)
+        x = self.conv1(x)           # (batch_size, 1216, num_points) -> (batch_size, 512, num_points)
+        x = self.conv2(x)           # (batch_size, 512, num_points) -> (batch_size, 256, num_points)         
+        x = self.dp1(x)
+        x = self.conv3(x)           # (batch_size, 256, num_points) -> (batch_size, 7, num_points)
+        
+        y1 = F.adaptive_max_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)    
+        y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
+
+        y = F.leaky_relu(self.bn9(self.linear1(y)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
+        y = self.dp2(y)
+        y = F.leaky_relu(self.bn10(self.linear2(y)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
+        y = self.dp3(y)
+        y = self.linear3(y)     # (batch_size, 256) -> (batch_size, 5)
+        
+        return x, y    # x -> semantic segmentation, y -> type classification
+
+
+class Attribute(nn.Module):
+    def __init__(self):
+        super(Attribute, self).__init__()
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.bn3 = nn.BatchNorm1d(512)
+        self.bn4 = nn.BatchNorm1d(256)
+        
+        self.conv1 = nn.Sequential(nn.Conv1d(5, 64, kernel_size=1, bias=False),
+                                   self.bn1,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv1d(7, 64, kernel_size=1, bias=False),
+                                   self.bn2,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.linear1 = nn.Linear(1152, 512, bias=False)
+        self.dp1 = nn.Dropout(p=0.4)
+        self.linear2 = nn.Linear(512, 256)
+        self.dp2 = nn.Dropout(p=0.4)
+        self.linear3 = nn.Linear(256, 28)
+        
+    def forward(self, x, t, n):
+        x = x.max(dim=-1, keepdim=True)[0]
+        t = t.view(16, -1, 1)
+        t = self.conv1(t)
+        n = n.view(16, -1, 1)
+        n = self.conv2(n)
+        
+        x = torch.cat((x, t, n), dim=1)
+        x = x.view(16, -1)
+        x = F.relu(self.bn3(self.linear1(x)))
+        x = self.dp1(x)
+        x = F.relu(self.bn4(self.linear2(x)))
+        x = self.dp2(x)
+        x = self.linear3(x)
+        
         return x
-
-
+                    
+    
 if __name__ == '__main__':
     from torchsummary import summary
     # help(summary)
