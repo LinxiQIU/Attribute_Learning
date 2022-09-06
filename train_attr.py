@@ -170,15 +170,7 @@ def train(args, io):
         train_mrot_error = mae(train_true_mrot, train_pred_mrot)
         outstr = 'Train %d, Loss: %.6f' % (epoch, train_loss * 1.0 / count)
         io.cprint(outstr)
-        if loss2 <= best_mse:
-            best_mse = loss2
-            savepath1 = 'outputs/%s/%s/%s/models/best_head.pth' % (args.model, args.exp_name, args.change)
-            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
-            torch.save(state1, savepath1)
-            savepath2 = 'outputs/%s/%s/%s/models/best_tail2.pth' % (args.model, args.exp_name, args.change)
-            state2 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
-            torch.save(state2, savepath2)
-            io.cprint('Saving best MSE at %d epoch with %.6f' % (epoch, loss2))
+        
         writer.add_scalar('learning rate/lr', opt2.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Train', train_type_cls, epoch)
@@ -187,6 +179,13 @@ def train(args, io):
         writer.add_scalar('Gear_Pos_XZ/Train', train_gpos_xz_error, epoch)
         writer.add_scalar('Bolt_Pos/Train', train_bpos_error, epoch)
         writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
+        if loss2 <= best_mse:
+            best_mse = loss2
+            # state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
+            # torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
+            # state2 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
+            # torch.save(state2, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
+            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, loss2))
         ####################
         # Test
         ####################
