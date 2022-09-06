@@ -85,7 +85,7 @@ def train(args, io):
     
     criterion1 = cal_loss
     criterion2 = mean_loss
-    num_class = 6
+    num_class = 7
     best_mse = 100
     for epoch in range(args.epochs):
         ####################
