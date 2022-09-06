@@ -122,8 +122,8 @@ def train(args, io):
             loss1.backward()
             opt1.step()
             logits = pred_ty.max(dim=1)[1]
-            train_pred_cls.append(logits.detach().numpy())
-            train_true_cls.append(ty.numpy())
+            train_pred_cls.append(logits.detach().cpu().numpy())
+            train_true_cls.append(ty.cpu().numpy())
             sd1 = Head.state_dict()            
             Head.load_state_dict(sd1)
             opt2.zero_grad()
@@ -136,8 +136,8 @@ def train(args, io):
             opt2.step()
             count += batch_size
             train_loss += loss2.item() * batch_size
-            pred_np = pred_attr.detach().numpy()
-            attr_np = attr.numpy()
+            pred_np = pred_attr.detach().cpu().numpy()
+            attr_np = attr.cpu().numpy()
             train_pred_profile.append(np.array([x[:4] for x in pred_np]).reshape(-1))   # Size(16*4=64)
             train_true_profile.append(np.array([x[:4] for x in attr_np]).reshape(-1))                   
             train_pred_gpos.append(np.array([x[4: 10] for x in pred_np]).reshape(-1))   # Size(16*6=96)
@@ -214,16 +214,16 @@ def train(args, io):
             global_feature, pointweise = Head(data.float())
             pred_seg, pred_ty = Tail1(global_feature, pointweise)
             logits = pred_ty.max(dim=1)[1]
-            test_pred_cls.append(logits.detach().numpy())
-            test_true_cls.append(ty.numpy())
+            test_pred_cls.append(logits.detach().cpu().numpy())
+            test_true_cls.append(ty.cpu().numpy())
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
             loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
             count += batch_size
             test_loss += loss.item() * batch_size
-            pred_np = pred_attr.detach().numpy()
-            attr_np = attr.numpy()
+            pred_np = pred_attr.detach().cpu().numpy()
+            attr_np = attr.cpu().numpy()
             test_pred_profile.append(np.array([x[:4] for x in pred_np]).reshape(-1))   # Size(16*4=64)
             test_true_profile.append(np.array([x[:4] for x in attr_np]).reshape(-1))                   
             test_pred_gpos.append(np.array([x[4: 10] for x in pred_np]).reshape(-1))   # Size(16*6=96)
