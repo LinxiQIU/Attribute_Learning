@@ -114,8 +114,8 @@ def train(args, io):
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
             opt1.zero_grad()
-            global_feature1, pointweise1 = Head(data.float())
-            pred_seg, pred_ty = Tail1(global_feature1, pointweise1)
+            pointweise1, global_feature1 = Head(data.float())
+            pred_seg, pred_ty = Tail1(pointweise1, global_feature1)
             loss_cls = criterion1(pred_ty, ty.squeeze())
             loss_seg = criterion1(pred_seg.view(-1, num_class), seg.view(-1, 1).squeeze())
             loss1 = loss_cls + loss_seg
@@ -127,7 +127,7 @@ def train(args, io):
             sd1 = Head.state_dict()            
             Head.load_state_dict(sd1)
             opt2.zero_grad()
-            global_feature2, pointweise2 = Head(data.float())                       
+            pointweise2, global_feature2 = Head(data.float())                       
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
             pred_attr = Tail2(global_feature2, type_one_hot.float(), num_one_hot.float())          
@@ -212,8 +212,8 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            global_feature, pointweise = Head(data.float())
-            pred_seg, pred_ty = Tail1(global_feature, pointweise)
+            pointweise, global_feature = Head(data.float())
+            pred_seg, pred_ty = Tail1(pointweise, global_feature)
             logits = pred_ty.max(dim=1)[1]
             test_pred_cls.append(logits.detach().cpu().numpy())
             test_true_cls.append(ty.cpu().numpy())

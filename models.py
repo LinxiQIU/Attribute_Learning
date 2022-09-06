@@ -295,7 +295,7 @@ class DGCNN_Core(nn.Module):
         x3 = x.max(dim=-1, keepdim=False)[0]
         
         x = torch.cat((x1, x2, x3), dim=1)     # (batch_size, 64+64+64=192, num_points)
-        x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, emb_dims, num_points)
+        x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, 1024, num_points)
         x = x4.max(dim=-1, keepdim=True)[0]
         
         x = x.repeat(1, 1, num_points)
@@ -360,7 +360,7 @@ class Attribute(nn.Module):
         self.conv2 = nn.Sequential(nn.Conv1d(7, 64, kernel_size=1, bias=False),
                                    self.bn2,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.linear1 = nn.Linear(1152, 512, bias=False)
+        self.linear1 = nn.Linear(1152, 512, bias=False)    # 
         self.dp1 = nn.Dropout(p=0.4)
         self.linear2 = nn.Linear(512, 256)
         self.dp2 = nn.Dropout(p=0.4)
@@ -372,10 +372,9 @@ class Attribute(nn.Module):
         t = t.view(batch_size, -1, 1)
         t = self.conv1(t)
         n = n.view(batch_size, -1, 1)
-        n = self.conv2(n)
-        
+        n = self.conv2(n)        
         x = torch.cat((x, t, n), dim=1)
-        x = x.view(16, -1)
+        x = x.view(batch_size, -1)
         x = F.relu(self.bn3(self.linear1(x)))
         x = self.dp1(x)
         x = F.relu(self.bn4(self.linear2(x)))
