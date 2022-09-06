@@ -64,15 +64,19 @@ for p, l, t, A, n, m in train_dataloader:
     
     target = torch.randn(16, 28)
     pred_np = pred.detach().numpy()
+    print(pred_np.shape)
     target_np = target.numpy()
     # profile = np.array([x[:4] for x in target_np])    # (16, 4)   
     # idxs = [4,6,7,9]
+    gpos_xz = []
+    gpos_xz.append(np.array([x[i] for x in target_np for i in [4, 6, 7, 9]]))
+    # print(gpos_xz)
     pred_profile = np.array([x[i] for x in pred_np for i in [4,6,7,9]])
     pred_profile1 = np.array([x[4:10] for x in pred_np])
-    print(pred_profile)
-    print(pred_profile1)
-    print(pred_profile.shape)
-    # print(pred_profile.reshape(-1).shape)
+    # print(pred_profile)
+    # print(pred_profile1)
+    # print(pred_profile.shape)
+    # print(pred_profile1.reshape(-1).shape)
     # train_true_cls.append(np.array([x[] for x in target_np]).reshape(-1))
     # train_pred_cls.append(pred_profile.reshape(-1))
     # gear_pos = 

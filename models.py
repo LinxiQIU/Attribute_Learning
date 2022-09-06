@@ -301,7 +301,7 @@ class DGCNN_Core(nn.Module):
         x = x.repeat(1, 1, num_points)
         x = torch.cat((x, x1, x2, x3), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
         
-        return x, x4    # x -> pointweise feature for semantic segmentation, x4 -> 1024 feature vector
+        return x, x4  # x -> pointweise feature for semantic segmentation, x4 -> 1024 global feature vector
 
 
 class CLS_Semseg(nn.Module):

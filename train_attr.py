@@ -137,8 +137,8 @@ def train(args, io):
             count += batch_size
             train_loss += loss2.item() * batch_size
             
-            pred_np = pred_attr.detach().cpu().numpy()
-            attr_np = attr.cpu().numpy()
+            pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
+            attr_np = attr.view(batch_size, -1).cpu().numpy()
             train_pred_profile.append(np.array([x[:4] for x in pred_np]).reshape(-1))   # Size(16*4=64)
             train_true_profile.append(np.array([x[:4] for x in attr_np]).reshape(-1))                   
             train_pred_gpos.append(np.array([x[4: 10] for x in pred_np]).reshape(-1))   # Size(16*6=96)
@@ -224,7 +224,7 @@ def train(args, io):
             count += batch_size
             test_loss += loss.item() * batch_size
             pred_np = pred_attr.detach().cpu().numpy()
-            attr_np = attr.cpu().numpy()
+            attr_np = attr.view(batch_size, -1).cpu().numpy()
             test_pred_profile.append(np.array([x[:4] for x in pred_np]).reshape(-1))   # Size(16*4=64)
             test_true_profile.append(np.array([x[:4] for x in attr_np]).reshape(-1))                   
             test_pred_gpos.append(np.array([x[4: 10] for x in pred_np]).reshape(-1))   # Size(16*6=96)

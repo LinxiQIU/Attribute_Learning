@@ -91,7 +91,8 @@ if __name__ == '__main__':
     # import torch.nn.functional as F
     # print(len(train_dataloader))
     for p, l, t, a, n, m in train_dataloader:
-        print(type(m))
+        attr_np = a.cpu().numpy()
+        print(type(attr_np.reshape(16, -1)))
         # print(len(train_dataloader))
     #     # print(type(p), type(t), type(a), type(n))    
         # ty = t.reshape(-1)
