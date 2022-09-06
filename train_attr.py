@@ -172,10 +172,10 @@ def train(args, io):
         io.cprint(outstr)
         if loss2 <= best_mse:
             best_mse = loss2
-            savepath1 = 'outputs/%s/%s/%s/models/best_head' % (args.model, args.exp_name, args.change)
+            savepath1 = 'outputs/%s/%s/%s/models/best_head.pth' % (args.model, args.exp_name, args.change)
             state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
             torch.save(state1, savepath1)
-            savepath2 = 'outputs/%s/%s/%s/models/best_tail2' % (args.model, args.exp_name, args.change)
+            savepath2 = 'outputs/%s/%s/%s/models/best_tail2.pth' % (args.model, args.exp_name, args.change)
             state2 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
             torch.save(state2, savepath2)
             io.cprint('Saving best MSE at %d epoch with %.6f' % (epoch, loss2))
