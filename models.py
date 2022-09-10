@@ -351,9 +351,9 @@ class CLS_Semseg(nn.Module):
         ty = self.dp3(ty)
         ty = self.linear3(ty)     # (batch_size, 256) -> (batch_size, 5)
         
-        num = F.leaky_relu(self.bn4(self.fc1(y1)), negative_slope=0.2)      # (batch_size, 1024) -> (batch_size, 512)
+        num = F.leaky_relu(self.bn5(self.fc1(y1)), negative_slope=0.2)      # (batch_size, 1024) -> (batch_size, 512)
         num = self.dp4(num)
-        num = F.leaky_relu(self.bn5(self.fc2(num)), negative_slope=0.2)      # (batch_size, 512) -> (batch_size, 256)
+        num = F.leaky_relu(self.bn6(self.fc2(num)), negative_slope=0.2)      # (batch_size, 512) -> (batch_size, 256)
         num = self.dp5(num)
         num = self.fc3(num)         # (batch_size, 256) -> (batch_size, 5)
         
