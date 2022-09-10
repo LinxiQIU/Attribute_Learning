@@ -91,7 +91,7 @@ if __name__ == '__main__':
     for p, l, t, a, n, m in train_dataloader:
         print('type shape: ', t.shape)
         print('num shape: ', n.shape)
-        print(m.shape)
+        # print(m.shape)
         
         
         

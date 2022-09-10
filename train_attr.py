@@ -113,7 +113,7 @@ def train(args, io):
             pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
             loss_cls = criterion1(pred_ty, ty.squeeze())
             loss_seg = criterion1(pred_seg.view(-1, num_class), seg.view(-1, 1).squeeze())
-            loss_num = criterion1(pred_num, num)
+            loss_num = criterion1(pred_num, num.squeeze())
             loss1 = loss_cls + loss_seg + loss_num
             loss1.backward()
             opt1.step()
