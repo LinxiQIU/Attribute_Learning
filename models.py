@@ -342,10 +342,10 @@ class CLS_Semseg(nn.Module):
         x = self.conv3(x)           # (batch_size, 256, num_points) -> (batch_size, 7, num_points)
         
         y1 = F.adaptive_max_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)    
-        y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
-        y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
+        # y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        # y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
 
-        ty = F.leaky_relu(self.bn3(self.linear1(y)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
+        ty = F.leaky_relu(self.bn3(self.linear1(y1)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
         ty = self.dp2(ty)
         ty = F.leaky_relu(self.bn4(self.linear2(ty)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
         ty = self.dp3(ty)
