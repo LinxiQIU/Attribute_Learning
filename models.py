@@ -318,7 +318,7 @@ class CLS_Semseg(nn.Module):
         self.dp1 = nn.Dropout(p=0.5)
         self.conv3 = nn.Conv1d(256, 7, kernel_size=1, bias=False)   #256*6=1536
         
-        self.linear1 = nn.Linear(1024*2, 512, bias=False)
+        self.linear1 = nn.Linear(1024, 512, bias=False)
         self.bn3 = nn.BatchNorm1d(512)
         self.dp2 = nn.Dropout(p=0.5)
         self.linear2 = nn.Linear(512, 256)
