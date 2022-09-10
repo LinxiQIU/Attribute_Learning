@@ -88,17 +88,11 @@ if __name__ == '__main__':
     train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\motor_attr.csv', 
                           mask_file='E:\\data\\attr_mask.csv', split='test')
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
-    # import torch.nn.functional as F
-    # print(len(train_dataloader))
     for p, l, t, a, n, m in train_dataloader:
-        attr_np = a.cpu().numpy()
-        print(type(attr_np.reshape(16, -1)))
-        # print(len(train_dataloader))
-    #     # print(type(p), type(t), type(a), type(n))    
-        # ty = t.reshape(-1)
-        # type_one_hot = F.one_hot(ty.long(), num_classes=5)
-        # num_one_hot = F.one_hot(n.reshape(-1).long(), num_classes=7)
-        # print(type_one_hot.shape, num_one_hot.shape)
+        print('type shape: ', t.shape)
+        print('num shape: ', n.shape)
+        print(m.shape)
+        
         
         
         

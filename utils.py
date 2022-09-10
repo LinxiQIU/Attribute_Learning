@@ -176,7 +176,6 @@ def feature_transform_reguliarzer(trans,GT=None):
     return loss
 
 
-
 def get_parameter_number(net):
     total=0
     times=0
@@ -200,3 +199,33 @@ class IOStream():
 
     def close(self):
         self.f.close()
+
+
+def distance(ls1, ls2, dim, mask=None):
+    if dim == 2:
+        l1 = np.array_split(ls1, len(ls1)/2)
+        l2 = np.array_split(ls2, len(ls2)/2)
+        # m = np.array_split(mask, len(mask)/2)
+    elif dim == 3:
+        l1 = np.array_split(ls1, len(ls1)/3)
+        l2 = np.array_split(ls2, len(ls2)/3)
+        # m = np.array_split(mask, len(mask)/2)
+    dist = []
+    for i in range(len(l1)):
+        squared_dist = np.sum((l1[i] - l2[i])**2, axis=0)
+        d = np.sqrt(squared_dist)
+        dist.append(d)        
+    valid_dist = np.sum(dist * mask) / np.sum(mask)
+    return valid_dist
+
+
+def mean_relative_error(y_true, y_pred, mask):
+    error = []
+    for i in range(len(y_true)):
+        e = np.abs(y_true[i] - y_pred[i])
+        if mask[i][3] == 0.0:
+            er = e[:3] / y_true[i][:3]
+        else:
+            er = e / y_true[i]
+        error.append(np.sum(er)/np.sum(mask[i]))
+    return np.mean(error)

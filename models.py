@@ -319,12 +319,20 @@ class CLS_Semseg(nn.Module):
         self.conv3 = nn.Conv1d(256, 7, kernel_size=1, bias=False)   #256*6=1536
         
         self.linear1 = nn.Linear(1024*2, 512, bias=False)
-        self.bn9 = nn.BatchNorm1d(512)
+        self.bn3 = nn.BatchNorm1d(512)
         self.dp2 = nn.Dropout(p=0.5)
         self.linear2 = nn.Linear(512, 256)
-        self.bn10 = nn.BatchNorm1d(256)
+        self.bn4 = nn.BatchNorm1d(256)
         self.dp3 = nn.Dropout(p=0.5)
         self.linear3 = nn.Linear(256, 5)
+        
+        self.fc1 = nn.Linear(1024, 512, bias=False)
+        self.bn5 = nn.BatchNorm1d(512)
+        self.dp4 = nn.Dropout(p=0.5)
+        self.fc2 = nn.Linear(512, 256)
+        self.bn6 = nn.BatchNorm1d(256)
+        self.dp5 = nn.Dropout(p=0.5)
+        self.fc3 = nn.Linear(256, 5)
         
     def forward(self, x, y):     # x (pointweise), y (1024)
         batch_size = y.size(0)
@@ -337,13 +345,19 @@ class CLS_Semseg(nn.Module):
         y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
 
-        y = F.leaky_relu(self.bn9(self.linear1(y)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
-        y = self.dp2(y)
-        y = F.leaky_relu(self.bn10(self.linear2(y)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
-        y = self.dp3(y)
-        y = self.linear3(y)     # (batch_size, 256) -> (batch_size, 5)
+        ty = F.leaky_relu(self.bn3(self.linear1(y)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
+        ty = self.dp2(ty)
+        ty = F.leaky_relu(self.bn4(self.linear2(ty)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
+        ty = self.dp3(ty)
+        ty = self.linear3(ty)     # (batch_size, 256) -> (batch_size, 5)
         
-        return x, y    # x -> semantic segmentation, y -> type classification
+        num = F.leaky_relu(self.bn4(self.fc1(y1)), negative_slope=0.2)      # (batch_size, 1024) -> (batch_size, 512)
+        num = self.dp4(num)
+        num = F.leaky_relu(self.bn5(self.fc2(num)), negative_slope=0.2)      # (batch_size, 512) -> (batch_size, 256)
+        num = self.dp5(num)
+        num = self.fc3(num)         # (batch_size, 256) -> (batch_size, 5)
+        
+        return x, ty, num    # x -> semantic seg, ty -> type cls, num -> num of cover bolts 
 
 
 class Attribute(nn.Module):
