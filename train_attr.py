@@ -65,6 +65,13 @@ def train(args, io):
         opt1 = optim.AdamW(params1, lr=args.lr, weight_decay=1e-4)
         opt2 = optim.AdamW(params2, lr=args.lr, weight_decay=1e-4)
     
+    if args.scheduler == 'cos':
+        scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
+        scheduler2 = CosineAnnealingLR(opt2, args.epochs, eta_min=1e-5)
+    elif args.scheduler == 'step':
+        scheduler1 = StepLR(opt1, step_size=60, gamma=0.2)
+        scheduler2 = StepLR(opt2, step_size=60, gamma=0.2)
+    
     print("Starting from scratch!")
     
     criterion1 = cal_loss
@@ -123,21 +130,6 @@ def train(args, io):
             opt2.step()
             count += batch_size
             train_loss += loss2.item() * batch_size
-            
-            if args.scheduler == 'cos':
-                scheduler = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
-                scheduler = CosineAnnealingLR(opt2, args.epochs, eta_min=1e-5)
-            elif args.scheduler == 'step':
-                scheduler = StepLR(opt1, step_size=60, gamma=0.2)
-                scheduler = StepLR(opt2, step_size=60, gamma=0.2)
-            if args.scheduler == 'cos':
-                scheduler.step()
-            elif args.scheduler == 'step':
-                if opt1.param_groups[0]['lr'] > 1e-5:
-                    scheduler.step()
-                if opt1.param_groups[0]['lr'] < 1e-5:
-                    for param_group in opt1.param_groups:
-                        param_group['lr'] = 1e-5
                         
             pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
             attr_np = attr.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
@@ -163,6 +155,18 @@ def train(args, io):
             true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
             pred_mrot = np.array([x[25: 28] for x in pred_np])
             train_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
+            
+        if args.scheduler == 'cos':
+            scheduler1.step()
+            scheduler2.step()
+        elif args.scheduler == 'step':
+            if opt1.param_groups[0]['lr'] > 1e-5:
+                scheduler1.step()
+                scheduler2.step()
+            if opt1.param_groups[0]['lr'] < 1e-5:
+                for param_group in opt1.param_groups:
+                    param_group['lr'] = 1e-5
+                            
         train_pred_cls = np.concatenate(train_pred_cls)
         train_true_cls = np.concatenate(train_true_cls)
         train_type_cls = accuracy_score(train_true_cls, train_pred_cls)
