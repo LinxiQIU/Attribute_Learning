@@ -108,6 +108,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
+            num = torch.sub(num, 3).to(device)
             opt1.zero_grad()
             pointweise1, global_feature1 = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
@@ -210,6 +211,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
+            num = torch.sub(num - 3).to(device)
             pointweise, global_feature = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
             logits = pred_ty.max(dim=1)[1]

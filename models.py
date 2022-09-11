@@ -332,7 +332,7 @@ class CLS_Semseg(nn.Module):
         self.fc2 = nn.Linear(512, 256)
         self.bn6 = nn.BatchNorm1d(256)
         self.dp5 = nn.Dropout(p=0.5)
-        self.fc3 = nn.Linear(256, 5)
+        self.fc3 = nn.Linear(256, 3)
         
     def forward(self, x, y):     # x (pointweise), y (1024)
         batch_size = y.size(0)

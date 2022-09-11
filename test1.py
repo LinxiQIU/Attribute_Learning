@@ -88,16 +88,20 @@ for p, l, t, A, n, m in tqdm(train_dataloader, total=len(train_dataloader), smoo
     pred = l2(e)
     
     
-    attr_np = A.view(16, -1).numpy()     # Size(16, 28)
-    m_np = m.view(16, -1).numpy()       # Size(16, 28)
-    pred_np = pred.detach().numpy()     # Size(16, 28)
-    true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
-    pred_mrot = np.array([x[25: 28] for x in pred_np])
-    mrot = np.abs(true_mrot - pred_mrot)
-    print(mrot)
-    train_mrot = np.mean(mrot)
-    print(train_mrot)
-
+    # attr_np = A.view(16, -1).numpy()     # Size(16, 28)
+    # m_np = m.view(16, -1).numpy()       # Size(16, 28)
+    # pred_np = pred.detach().numpy()     # Size(16, 28)
+    # true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+    # pred_mrot = np.array([x[25: 28] for x in pred_np])
+    # mrot = np.abs(true_mrot - pred_mrot)
+    # print(mrot)
+    # train_mrot = np.mean(mrot)
+    # print(train_mrot)
+    
+    
+    num = torch.sub(n, 3)
+    print(num.shape)
+    # print(n.shape)
     # profile = np.array([x[0:4] for x in attr_np])   # Size(16, 4)
     # # print(profile)
     # pred_profile = np.array([x[0:4] for x in pred_np])   # Size(16, 4)

@@ -90,7 +90,7 @@ if __name__ == '__main__':
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
     for p, l, t, a, n, m in train_dataloader:
         print('type shape: ', t.shape)
-        print('num shape: ', n.shape)
+        print('num shape: ', n)
         # print(m.shape)
         
         
