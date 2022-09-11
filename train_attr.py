@@ -169,7 +169,7 @@ def train(args, io):
         train_gpos_error = np.mean(train_gpos)
         train_bpos_error = np.mean(train_bpos)
         train_mrot_error = np.mean(train_mrot)
-        outstr='Train %d, Loss: %.6f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, train_loss*1.0/count, train_num_acc, train_profile_error, train_gpos_error)
+        outstr='Train %d, Loss: %.6f, type cls acc: %.5f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, train_loss*1.0/count, train_type_cls, train_num_acc, train_profile_error, train_gpos_error)
         io.cprint(outstr)
         
         writer.add_scalar('learning rate/lr', opt2.param_groups[0]['lr'], epoch)
@@ -211,7 +211,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            num = torch.sub(num - 3).to(device)
+            num = torch.sub(num, 3).to(device)
             pointweise, global_feature = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
             logits = pred_ty.max(dim=1)[1]
@@ -259,7 +259,7 @@ def train(args, io):
         test_gpos_error = np.mean(test_gpos)
         test_bpos_error = np.mean(test_bpos)
         test_mrot_error = np.mean(test_mrot)
-        outstr = 'Test %d, Loss: %.6f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, test_loss*1.0/count, test_num_acc, test_profile_error, test_gpos_error)
+        outstr = 'Test %d, Loss: %.6f, type cls acc: %.5f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, test_loss*1.0/count, test_type_cls, test_num_acc, test_profile_error, test_gpos_error)
         io.cprint(outstr)
 
         writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
