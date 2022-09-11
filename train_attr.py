@@ -192,84 +192,84 @@ def train(args, io):
         ####################
         # Test
         ####################
-        test_loss = 0.0
-        count = 0.0
-        Head.eval()
-        Tail1.eval()
-        Tail2.eval()
-        test_pred_cls = []
-        test_true_cls = []
-        test_pred_num = []
-        test_true_num = []
-        test_profile_error = []
-        test_gpos = []
-        test_gpos_xz = []
-        test_bpos = []
-        test_mrot = []
-        for pc, seg, ty, attr, num, mask in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
-            pc, seg, ty, attr, num, m = pc.to(device), seg.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
-            pc = normalize_data(pc)
-            data = pc.permute(0, 2, 1)
-            batch_size = data.size()[0]
-            num = torch.sub(num, 3).to(device)
-            pointweise, global_feature = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
-            logits = pred_ty.max(dim=1)[1]
-            test_pred_cls.append(logits.detach().cpu().numpy())
-            test_true_cls.append(ty.cpu().numpy())
-            cb_num = pred_num.max(dim=1)[1]
-            test_pred_num.append(cb_num.detach().cpu().numpy())
-            test_true_num.append(num.cpu().numpy())
-            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
-            pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
-            loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
-            count += batch_size
-            test_loss += loss.item() * batch_size
+        # test_loss = 0.0
+        # count = 0.0
+        # Head.eval()
+        # Tail1.eval()
+        # Tail2.eval()
+        # test_pred_cls = []
+        # test_true_cls = []
+        # test_pred_num = []
+        # test_true_num = []
+        # test_profile_error = []
+        # test_gpos = []
+        # test_gpos_xz = []
+        # test_bpos = []
+        # test_mrot = []
+        # for pc, seg, ty, attr, num, mask in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
+        #     pc, seg, ty, attr, num, m = pc.to(device), seg.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
+        #     pc = normalize_data(pc)
+        #     data = pc.permute(0, 2, 1)
+        #     batch_size = data.size()[0]
+        #     num = torch.sub(num, 3).to(device)
+        #     pointweise, global_feature = Head(data.float())
+        #     pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+        #     logits = pred_ty.max(dim=1)[1]
+        #     test_pred_cls.append(logits.detach().cpu().numpy())
+        #     test_true_cls.append(ty.cpu().numpy())
+        #     cb_num = pred_num.max(dim=1)[1]
+        #     test_pred_num.append(cb_num.detach().cpu().numpy())
+        #     test_true_num.append(num.cpu().numpy())
+        #     type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+        #     num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+        #     pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
+        #     loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
+        #     count += batch_size
+        #     test_loss += loss.item() * batch_size
             
-            pred_np = pred_attr.detach().cpu().numpy()
-            attr_np = attr.view(batch_size, -1).cpu().numpy()
-            mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
-            profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
-            pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
-            m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
-            test_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
-            true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
-            pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
-            m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
-            test_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
-            true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
-            pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
-            test_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
-            true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
-            pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
-            m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
-            test_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
-            true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
-            pred_mrot = np.array([x[25: 28] for x in pred_np])
-            test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
-        test_pred_cls = np.concatenate(test_pred_cls)
-        test_true_cls = np.concatenate(test_true_cls)
-        test_type_cls = accuracy_score(test_true_cls, test_pred_cls)
-        test_pred_num = np.concatenate(test_pred_num)
-        test_true_num = np.concatenate(test_true_num)
-        test_num_acc = accuracy_score(test_true_num, test_pred_num)
-        test_profile_error = np.mean(test_profile_error)
-        test_gpos_xz_error = np.mean(test_gpos_xz)
-        test_gpos_error = np.mean(test_gpos)
-        test_bpos_error = np.mean(test_bpos)
-        test_mrot_error = np.mean(test_mrot)
-        outstr = 'Test %d, Loss: %.6f, type cls acc: %.5f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, test_loss*1.0/count, test_type_cls, test_num_acc, test_profile_error, test_gpos_error)
-        io.cprint(outstr)
+        #     pred_np = pred_attr.detach().cpu().numpy()
+        #     attr_np = attr.view(batch_size, -1).cpu().numpy()
+        #     mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+        #     profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
+        #     pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
+        #     m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
+        #     test_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
+        #     true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
+        #     pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
+        #     m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
+        #     test_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
+        #     true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
+        #     pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
+        #     test_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
+        #     true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
+        #     pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
+        #     m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
+        #     test_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
+        #     true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+        #     pred_mrot = np.array([x[25: 28] for x in pred_np])
+        #     test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
+        # test_pred_cls = np.concatenate(test_pred_cls)
+        # test_true_cls = np.concatenate(test_true_cls)
+        # test_type_cls = accuracy_score(test_true_cls, test_pred_cls)
+        # test_pred_num = np.concatenate(test_pred_num)
+        # test_true_num = np.concatenate(test_true_num)
+        # test_num_acc = accuracy_score(test_true_num, test_pred_num)
+        # test_profile_error = np.mean(test_profile_error)
+        # test_gpos_xz_error = np.mean(test_gpos_xz)
+        # test_gpos_error = np.mean(test_gpos)
+        # test_bpos_error = np.mean(test_bpos)
+        # test_mrot_error = np.mean(test_mrot)
+        # outstr = 'Test %d, Loss: %.6f, type cls acc: %.5f, cover bolts num acc: %.5f, profile error: %.5f, gear pos mean dist: %.5f'%(epoch, test_loss*1.0/count, test_type_cls, test_num_acc, test_profile_error, test_gpos_error)
+        # io.cprint(outstr)
 
-        writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
-        writer.add_scalar('Type cls/Test', test_type_cls, epoch)
-        writer.add_scalar('Cbolt_Num/Test', test_num_acc, epoch)
-        writer.add_scalar('Profile/Test', test_profile_error, epoch)
-        writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
-        writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
-        writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
-        writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
+        # writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
+        # writer.add_scalar('Type cls/Test', test_type_cls, epoch)
+        # writer.add_scalar('Cbolt_Num/Test', test_num_acc, epoch)
+        # writer.add_scalar('Profile/Test', test_profile_error, epoch)
+        # writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
+        # writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
+        # writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
+        # writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Multi Attributes Regression')
