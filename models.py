@@ -366,18 +366,18 @@ class Attribute(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
         self.bn3 = nn.BatchNorm1d(512)
-        self.bn4 = nn.BatchNorm1d(256)
+        # self.bn4 = nn.BatchNorm1d(256)
         
-        self.conv1 = nn.Sequential(nn.Conv1d(5, 64, kernel_size=1, bias=False),
+        self.conv1 = nn.Sequential(nn.Conv1d(5, 64, kernel_size=1, bias=False),      # (batch_size, 5)
                                    self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv1d(7, 64, kernel_size=1, bias=False),
                                    self.bn2,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.linear1 = nn.Linear(1152, 512, bias=False)    # 
-        self.dp1 = nn.Dropout(p=0.4)
+        self.linear1 = nn.Linear(1152, 512)    
+        # self.dp1 = nn.Dropout(p=0.5)
         self.linear2 = nn.Linear(512, 256)
-        self.dp2 = nn.Dropout(p=0.4)
+        # self.dp2 = nn.Dropout(p=0.5)
         self.linear3 = nn.Linear(256, 28)
         
     def forward(self, x, t, n):
@@ -389,13 +389,13 @@ class Attribute(nn.Module):
         n = self.conv2(n)        
         x = torch.cat((x, t, n), dim=1)
         x = x.view(batch_size, -1)
-        x = F.relu(self.bn3(self.linear1(x)))
-        x = self.dp1(x)
-        x = F.relu(self.bn4(self.linear2(x)))
-        x = self.dp2(x)
-        x = self.linear3(x)
+        x = F.leaky_relu(self.bn3(self.linear1(x)), negative_slope=0.2)
+        # x = self.dp1(x)
+        x = F.leaky_relu(self.linear2(x), negative_slope=0.2)
+        # x = self.dp2(x)
+        x = self.linear3(x)     # (batch_size, 28)
         
-        return x
+        return x    # x -> 28 attribute
                     
     
 if __name__ == '__main__':
