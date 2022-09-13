@@ -34,11 +34,11 @@ def _init_():
 
 
 def train(args, io):
-    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
+    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr_norm.csv', mask_file='attr_mask.csv',
                                 split='train', test_area=args.validation_symbol)
     train_dataloader = DataLoader(train_data, num_workers=8, batch_size=args.batch_size,
                                   shuffle=True, drop_last=True)
-    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
+    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr_norm.csv', mask_file='attr_mask.csv',
                                split='test', test_area=args.validation_symbol)
     test_dataloader = DataLoader(test_data, num_workers=8, batch_size=args.test_batch_size,
                                  shuffle=True, drop_last=False)
@@ -297,11 +297,11 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
                         choices=['dgcnn'],
                         help='Model to use, [dgcnn]')
-    parser.add_argument('--root', type=str, metavar='N',default='E:\\dataset1000',
+    parser.add_argument('--root', type=str, metavar='N',
                         help='folder of dataset')
-    parser.add_argument('--csv', type=str, default='E:\\data\\motor_attr.csv',
+    parser.add_argument('--csv', type=str,
                         help='moter attributes')
-    parser.add_argument('--mask', type=str, default='E:\\data\\attr_mask',
+    parser.add_argument('--mask', type=str,
                         help='attributes mask')
     parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch')
