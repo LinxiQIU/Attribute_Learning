@@ -34,11 +34,11 @@ def _init_():
 
 
 def train(args, io):
-    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr_norm.csv', mask_file='attr_mask.csv',
+    train_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
                                 split='train', test_area=args.validation_symbol)
     train_dataloader = DataLoader(train_data, num_workers=8, batch_size=args.batch_size,
                                   shuffle=True, drop_last=True)
-    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr_norm.csv', mask_file='attr_mask.csv',
+    test_data = MotorAttribute(root_dir=args.root, csv_file='motor_attr.csv', mask_file='attr_mask.csv',
                                split='test', test_area=args.validation_symbol)
     test_dataloader = DataLoader(test_data, num_workers=8, batch_size=args.test_batch_size,
                                  shuffle=True, drop_last=False)
