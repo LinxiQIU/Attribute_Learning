@@ -88,11 +88,11 @@ for p, l, t, A, n, m in tqdm(train_dataloader, total=len(train_dataloader), smoo
     pred = l2(e)
     
     
-    attr_np = A.view(16, -1).numpy()     # Size(16, 28)
-    m_np = m.view(16, -1).numpy()       # Size(16, 28)
-    pred_np = pred.detach().numpy()     # Size(16, 28)
-    loss = mean_loss(pred_np, attr_np)
-    print(loss.shape)
+    # attr_np = A.view(16, -1).numpy()     # Size(16, 28)
+    # m_np = m.view(16, -1).numpy()       # Size(16, 28)
+    # pred_np = pred.detach().numpy()     # Size(16, 28)
+    # loss = mean_loss(pred_np, attr_np)
+    # print(loss.shape)
     # true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
     # pred_mrot = np.array([x[25: 28] for x in pred_np])
     # mrot = np.abs(true_mrot - pred_mrot)

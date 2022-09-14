@@ -283,7 +283,7 @@ class DGCNN_Core(nn.Module):
         x = get_neighbors(x, k=self.k)         # (batch_size, 6, num_points) -> (batch_size, 6*2, num_points, k)
         x = self.conv1(x)                      # (batch_size, 6*2, num_points, k) -> (batch_size, 64, num_points, k)
         x = self.conv2(x)                      # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x1 = x.max(dim=-1, keepdim=False)[0]
+        x1 = x.max(dim=-1, keepdim=False)[0]   # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
         
         x = get_neighbors(x1, k=self.k)
         x = self.conv3(x)
@@ -297,9 +297,9 @@ class DGCNN_Core(nn.Module):
         x = torch.cat((x1, x2, x3), dim=1)     # (batch_size, 64+64+64=192, num_points)
         x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, 1024, num_points)
         x = x4.max(dim=-1, keepdim=True)[0]
-        
-        x = x.repeat(1, 1, num_points)
-        x = torch.cat((x, x1, x2, x3), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
+               
+        x = x.repeat(1, 1, num_points)          # (batch_size, 1024) -> (batch_size, 1024, num_points)
+        x = torch.cat((x1, x2, x3, x), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
         
         return x, x4  # x -> pointweise feature for semantic segmentation, x4 -> 1024 global feature vector
 
@@ -326,12 +326,12 @@ class CLS_Semseg(nn.Module):
         self.dp3 = nn.Dropout(p=0.5)
         self.linear3 = nn.Linear(256, 5)
         
-        self.fc1 = nn.Linear(1024, 512, bias=False)
+        self.fc1 = nn.Linear(2048, 512, bias=False)
         self.bn5 = nn.BatchNorm1d(512)
-        self.dp4 = nn.Dropout(p=0.5)
+        self.dp4 = nn.Dropout(p=0.4)
         self.fc2 = nn.Linear(512, 256)
         self.bn6 = nn.BatchNorm1d(256)
-        self.dp5 = nn.Dropout(p=0.5)
+        self.dp5 = nn.Dropout(p=0.4)
         self.fc3 = nn.Linear(256, 3)
         
     def forward(self, x, y):     # x (pointweise), y (1024)
@@ -342,20 +342,20 @@ class CLS_Semseg(nn.Module):
         x = self.conv3(x)           # (batch_size, 256, num_points) -> (batch_size, 7, num_points)
         
         y1 = F.adaptive_max_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)    
-        # y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
-        # y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
+        y2 = F.adaptive_avg_pool1d(y, 1).view(batch_size, -1)    # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
+        y = torch.cat((y1, y2), 1)      # (batch_size, emb_dims*2)
 
-        ty = F.leaky_relu(self.bn3(self.linear1(y1)), negative_slope=0.2)     # (batch_size, emb_dims*2) -> (batch_size, 512)
+        ty = F.leaky_relu(self.bn3(self.linear1(y1)), negative_slope=0.2)     # (batch_size, emb_dims) -> (batch_size, 512)
         ty = self.dp2(ty)
         ty = F.leaky_relu(self.bn4(self.linear2(ty)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
         ty = self.dp3(ty)
         ty = self.linear3(ty)     # (batch_size, 256) -> (batch_size, 5)
         
-        num = F.leaky_relu(self.bn5(self.fc1(y1)), negative_slope=0.2)      # (batch_size, 1024) -> (batch_size, 512)
+        num = F.leaky_relu(self.bn5(self.fc1(y)), negative_slope=0.2)      # (batch_size, 1024*2) -> (batch_size, 512)
         num = self.dp4(num)
         num = F.leaky_relu(self.bn6(self.fc2(num)), negative_slope=0.2)      # (batch_size, 512) -> (batch_size, 256)
         num = self.dp5(num)
-        num = self.fc3(num)         # (batch_size, 256) -> (batch_size, 5)
+        num = self.fc3(num)         # (batch_size, 256) -> (batch_size, 3)
         
         return x, ty, num    # x -> semantic seg, ty -> type cls, num -> num of cover bolts 
 
@@ -366,12 +366,12 @@ class Attribute(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
         self.bn3 = nn.BatchNorm1d(512)
-        # self.bn4 = nn.BatchNorm1d(256)
+        self.bn4 = nn.BatchNorm1d(256)
         
         self.conv1 = nn.Sequential(nn.Conv1d(5, 64, kernel_size=1, bias=False),      # (batch_size, 5)
                                    self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv2 = nn.Sequential(nn.Conv1d(7, 64, kernel_size=1, bias=False),
+        self.conv2 = nn.Sequential(nn.Conv1d(3, 64, kernel_size=1, bias=False),
                                    self.bn2,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.linear1 = nn.Linear(1152, 512)    
@@ -391,7 +391,7 @@ class Attribute(nn.Module):
         x = x.view(batch_size, -1)
         x = F.leaky_relu(self.bn3(self.linear1(x)), negative_slope=0.2)
         # x = self.dp1(x)
-        x = F.leaky_relu(self.linear2(x), negative_slope=0.2)
+        x = F.leaky_relu(self.bn4(self.linear2(x)), negative_slope=0.2)
         # x = self.dp2(x)
         x = self.linear3(x)     # (batch_size, 28)
         
@@ -400,8 +400,8 @@ class Attribute(nn.Module):
     
 if __name__ == '__main__':
     from torchsummary import summary
-    # help(summary)
+    help(summary)
     model = DGCNN_cls()
-    summary(model, (3, 1024), device='cuda')
-    # print(model)
+    summary(model, (3, 2048), device='cuda')
+    print(model)
     

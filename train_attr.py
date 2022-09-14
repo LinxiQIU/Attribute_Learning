@@ -102,7 +102,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            num = torch.sub(num, 3).to(device)
+            num = torch.sub(num, 3)
             opt1.zero_grad()
             pointweise1, global_feature1 = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
@@ -123,7 +123,7 @@ def train(args, io):
             opt2.zero_grad()
             pointweise2, global_feature2 = Head(data.float())                       
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = Tail2(global_feature2, type_one_hot.float(), num_one_hot.float())          
             loss2 = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
             loss2.backward()
@@ -223,7 +223,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            num = torch.sub(num, 3).to(device)
+            num = torch.sub(num, 3)
             pointweise, global_feature = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
             logits = pred_ty.max(dim=1)[1]
@@ -233,7 +233,7 @@ def train(args, io):
             test_pred_num.append(cb_num.detach().cpu().numpy())
             test_true_num.append(num.cpu().numpy())
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
             loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
             count += batch_size

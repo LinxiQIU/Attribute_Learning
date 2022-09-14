@@ -49,9 +49,7 @@ class MotorAttribute(Dataset):
             self.all_attr.append(attr)
             self.all_type.append(ty)
             self.all_bolt_num.append(num)
-            self.all_mask.append(mask)
-        
-        
+            self.all_mask.append(mask)        
         sample_prob = num_points_eachmotor / np.sum(num_points_eachmotor)
         num_inter = np.sum(num_points_eachmotor) / self.npoints
         self.motor_idxs = []
@@ -89,9 +87,13 @@ class MotorAttribute(Dataset):
 #                           mask_file='E:\\data\\attr_mask.csv', split='test')
 #     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
 #     for p, l, t, a, n, m in train_dataloader:
-#         print('type shape: ', t.shape)
-#         print('num shape: ', n)
-        # print(m.shape)
+#         # print('type shape: ', p.shape)
+#         # print('num shape: ', n)
+#         print(t.shape)
+#         print(n)
+#         print(n.shape)
+#         x=torch.sub(n, 3)
+#         print(x.shape)
         
         
         
