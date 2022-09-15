@@ -247,6 +247,54 @@ class DGCNN_cls(nn.Module):
         return x, y   # x -> type classification, y -> cover bolt numbers
 
 
+class DGCNN_CORE(nn.Module):
+    def __init__(self):
+        super(DGCNN_CORE, self).__init__()
+        self.k = 32
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.bn4 = nn.BatchNorm2d(256)
+        self.bn5 = nn.BatchNorm1d(1024)        
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
+                                   self.bn1, 
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),
+                                   self.bn2, 
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv3 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),
+                                   self.bn3, 
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv4 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
+                                   self.bn4, 
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv5 = nn.Sequential(nn.Conv1d(512, 1024, kernel_size=1, bias=False),
+                                   self.bn5, 
+                                   nn.LeakyReLU(negative_slope=0.2))
+
+    def forward(self, x):
+        batch_size = x.size(0)        
+        x = get_neighbors(x, k=self.k)      # (batch_size, 6, num_points) -> (batch_size, 6*2, num_points, k)
+        x = self.conv1(x)                       # (batch_size, 6*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x1 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+
+        x = get_neighbors(x1, k=self.k)     # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = self.conv2(x)                       # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x2 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+
+        x = get_neighbors(x2, k=self.k)     # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = self.conv3(x)                       # (batch_size, 64*2, num_points, k) -> (batch_size, 128, num_points, k)
+        x3 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 128, num_points, k) -> (batch_size, 128, num_points)
+
+        x = get_neighbors(x3, k=self.k)     # (batch_size, 128, num_points) -> (batch_size, 128*2, num_points, k)
+        x = self.conv4(x)                       # (batch_size, 128*2, num_points, k) -> (batch_size, 256, num_points, k)
+        x4 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 256, num_points, k) -> (batch_size, 256, num_points)
+
+        x = torch.cat((x1, x2, x3, x4), dim=1)  # (batch_size, 64+64+128+256=512, num_points)
+
+        x = self.conv5(x)                       # (batch_size, 64+64+128+256=512, num_points) -> (batch_size, emb_dims, num_points)
+         
+
 class DGCNN_Core(nn.Module):
     def __init__(self):
         super(DGCNN_Core, self).__init__()
@@ -328,10 +376,10 @@ class CLS_Semseg(nn.Module):
         
         self.fc1 = nn.Linear(2048, 512, bias=False)
         self.bn5 = nn.BatchNorm1d(512)
-        self.dp4 = nn.Dropout(p=0.4)
+        self.dp4 = nn.Dropout(p=0.2)
         self.fc2 = nn.Linear(512, 256)
         self.bn6 = nn.BatchNorm1d(256)
-        self.dp5 = nn.Dropout(p=0.4)
+        self.dp5 = nn.Dropout(p=0.2)
         self.fc3 = nn.Linear(256, 3)
         
     def forward(self, x, y):     # x (pointweise), y (1024)
