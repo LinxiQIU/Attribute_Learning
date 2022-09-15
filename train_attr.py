@@ -62,12 +62,12 @@ def train(args, io):
         opt2 = optim.Adam(params2, lr=args.lr, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt1 = optim.AdamW(params1, lr=args.lr, weight_decay=1e-4)
-        opt2 = optim.AdamW(params2, lr=args.lr, weight_decay=1e-4)
+        opt1 = optim.AdamW(params1, lr=args.lr, weight_decay=1e-2)
+        opt2 = optim.AdamW(params2, lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
-        scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-6)
-        scheduler2 = CosineAnnealingLR(opt2, args.epochs, eta_min=1e-6)
+        scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
+        scheduler2 = CosineAnnealingLR(opt2, args.epochs, eta_min=1e-5)
     elif args.scheduler == 'step':
         scheduler1 = StepLR(opt1, step_size=60, gamma=0.2)
         scheduler2 = StepLR(opt2, step_size=60, gamma=0.2)
