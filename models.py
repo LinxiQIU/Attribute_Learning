@@ -344,7 +344,7 @@ class DGCNN_Core(nn.Module):
         
         x = torch.cat((x1, x2, x3), dim=1)     # (batch_size, 64+64+64=192, num_points)
         x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, 1024, num_points)
-        x = x4.max(dim=-1, keepdim=True)[0]
+        x = x4.max(dim=-1, keepdim=True)[0]    # (batch_size, 1024, num_points) -> (batch_size, 1024)
                
         x = x.repeat(1, 1, num_points)          # (batch_size, 1024) -> (batch_size, 1024, num_points)
         x = torch.cat((x1, x2, x3, x), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
@@ -376,10 +376,10 @@ class CLS_Semseg(nn.Module):
         
         self.fc1 = nn.Linear(2048, 512, bias=False)
         self.bn5 = nn.BatchNorm1d(512)
-        self.dp4 = nn.Dropout(p=0.6)
+        self.dp4 = nn.Dropout(p=0.5)
         self.fc2 = nn.Linear(512, 256)
         self.bn6 = nn.BatchNorm1d(256)
-        self.dp5 = nn.Dropout(p=0.6)
+        self.dp5 = nn.Dropout(p=0.5)
         self.fc3 = nn.Linear(256, 3)
         
     def forward(self, x, y):     # x (pointweise), y (1024)
