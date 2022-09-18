@@ -273,7 +273,9 @@ class DGCNN_CORE(nn.Module):
                                    nn.LeakyReLU(negative_slope=0.2))
 
     def forward(self, x):
-        batch_size = x.size(0)        
+        batch_size = x.size(0)
+        num_points = x.size(2)
+
         x = get_neighbors(x, k=self.k)      # (batch_size, 6, num_points) -> (batch_size, 6*2, num_points, k)
         x = self.conv1(x)                       # (batch_size, 6*2, num_points, k) -> (batch_size, 64, num_points, k)
         x1 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
@@ -291,9 +293,14 @@ class DGCNN_CORE(nn.Module):
         x4 = x.max(dim=-1, keepdim=False)[0]    # (batch_size, 256, num_points, k) -> (batch_size, 256, num_points)
 
         x = torch.cat((x1, x2, x3, x4), dim=1)  # (batch_size, 64+64+128+256=512, num_points)
+        x5 = self.conv5(x)                       # (batch_size, 64+64+128+256=512, num_points) -> (batch_size, 1024, num_points)
+        x = x5.max(dim=-1, keepdim=True)[0]    # (batch_size, 1024, num_points) -> (batch_size, 1024)
+        x = x.repeat(1, 1, num_points)          # (batch_size, 1024) -> (batch_size, 1024, num_points)
+        x = torch.cat((x1, x2, x3, x4, x), dim=1)   # (batch_size, 64+64+128+256+emb_dims(1024)=1536, num_points)
 
-        x = self.conv5(x)                       # (batch_size, 64+64+128+256=512, num_points) -> (batch_size, emb_dims, num_points)
-         
+        return  x, x5    # x -> pointweise feature for semantic segmentation, x5 -> 1024 global feature vector
+
+
 
 class DGCNN_Core(nn.Module):
     def __init__(self):
@@ -351,13 +358,17 @@ class DGCNN_Core(nn.Module):
         
         return x, x4  # x -> pointweise feature for semantic segmentation, x4 -> 1024 global feature vector
 
+# class TWO_CLS(nn.Module):
+#     def __init__(self):
+#         super(TWO_CLS, self).__init__()
+
 
 class CLS_Semseg(nn.Module):
     def __init__(self):
         super(CLS_Semseg, self).__init__()
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
-        self.conv1 = nn.Sequential(nn.Conv1d(1216, 512, kernel_size=1, bias=False),         #1216*512=622592
+        self.conv1 = nn.Sequential(nn.Conv1d(1536, 512, kernel_size=1, bias=False),         #1216*512=622592
                                    self.bn1,        #2048
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, bias=False),      #512*256=131072

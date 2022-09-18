@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_Core, CLS_Semseg, Attribute
+from models import DGCNN_Core, CLS_Semseg, Attribute, DGCNN_CORE
 from utils import cal_loss, mean_loss, IOStream, normalize_data, distance, mean_relative_error
 from sklearn.metrics import accuracy_score
 from torch.utils.tensorboard import SummaryWriter
@@ -44,7 +44,7 @@ def train(args, io):
                                  shuffle=True, drop_last=False)
     device = torch.device('cuda' if args.cuda else 'cpu')
     
-    Head = nn.DataParallel(DGCNN_Core().to(device))
+    Head = nn.DataParallel(DGCNN_CORE().to(device))
     Tail1 = nn.DataParallel(CLS_Semseg().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
