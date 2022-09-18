@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_Core, CLS_Semseg, Attribute, DGCNN_CORE
+from models import DGCNN_Core, Attribute, TWO_CLS
 from utils import cal_loss, mean_loss, IOStream, normalize_data, distance, mean_relative_error
 from sklearn.metrics import accuracy_score
 from torch.utils.tensorboard import SummaryWriter
@@ -44,26 +44,26 @@ def train(args, io):
                                  shuffle=True, drop_last=False)
     device = torch.device('cuda' if args.cuda else 'cpu')
     
-    Head = nn.DataParallel(DGCNN_CORE().to(device))
-    Tail1 = nn.DataParallel(CLS_Semseg().to(device))
+    Head = nn.DataParallel(DGCNN_core().to(device))
+    Tail1 = nn.DataParallel(TWO_CLS().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
     params1 = list(Head.parameters()) + list(Tail1.parameters())
     params2 = list(Head.parameters()) + list(Tail2.parameters())
     if args.opt == 'sgd':
         print("Use SGD")        
-        opt1 = optim.SGD(params1, lr=args.lr*100, momentum=args.momentum, 
+        opt1 = optim.SGD(params1, lr=args.lr1*100, momentum=args.momentum, 
                         weight_decay=1e-4)
-        opt2 = optim.SGD(params2, lr=args.lr*100, momentum=args.momentum, 
+        opt2 = optim.SGD(params2, lr=args.lr2*100, momentum=args.momentum, 
                         weight_decay=1e-4)
     elif args.opt == 'adam':
         print("Use Adam")
-        opt1 = optim.Adam(params1, lr=args.lr, weight_decay=1e-4)
-        opt2 = optim.Adam(params2, lr=args.lr, weight_decay=1e-4)
+        opt1 = optim.Adam(params1, lr=args.lr1, weight_decay=1e-4)
+        opt2 = optim.Adam(params2, lr=args.lr2, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt1 = optim.AdamW(params1, lr=args.lr, weight_decay=1e-2)
-        opt2 = optim.AdamW(params2, lr=args.lr, weight_decay=1e-2)
+        opt1 = optim.AdamW(params1, lr=args.lr1, weight_decay=1e-4)
+        opt2 = optim.AdamW(params2, lr=args.lr2, weight_decay=1e-4)
     
     if args.scheduler == 'cos':
         scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
@@ -104,12 +104,15 @@ def train(args, io):
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
             opt1.zero_grad()
-            pointweise1, global_feature1 = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
+            # pointweise1, global_feature1 = Head(data.float())
+            # pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
+            global_feature1 = Head(data.float())
+            pred_ty, pred_num = Tail1(global_feature1)
             loss_cls = criterion1(pred_ty, ty.squeeze())
-            loss_seg = criterion1(pred_seg.view(-1, num_class), seg.view(-1, 1).squeeze())
+            # loss_seg = criterion1(pred_seg.view(-1, num_class), seg.view(-1, 1).squeeze())
             loss_num = criterion1(pred_num, num.squeeze())
-            loss1 = loss_cls + loss_seg + loss_num
+            # loss1 = loss_cls + loss_seg + loss_num
+            loss1 = loss_cls + loss_num
             loss1.backward()
             opt1.step()
             logits = pred_ty.max(dim=1)[1]
@@ -121,7 +124,8 @@ def train(args, io):
             sd1 = Head.state_dict()            
             Head.load_state_dict(sd1)
             opt2.zero_grad()
-            pointweise2, global_feature2 = Head(data.float())                       
+            # pointweise2, global_feature2 = Head(data.float())
+            global_feature2 = Head(data.float())                       
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = Tail2(global_feature2, type_one_hot.float(), num_one_hot.float())          
@@ -182,7 +186,8 @@ def train(args, io):
         outstr='Train %d, Loss: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, train_loss*1.0/count, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
         io.cprint(outstr)
         
-        writer.add_scalar('learning rate/lr', opt2.param_groups[0]['lr'], epoch)
+        writer.add_scalar('learning rate/lr1', opt1.param_groups[0]['lr'], epoch)
+        writer.add_scalar('learning rate/lr2', opt2.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Train', train_type_cls, epoch)
         writer.add_scalar('Cbolt_Num/Train', train_num_acc, epoch)
@@ -224,8 +229,10 @@ def train(args, io):
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
-            pointweise, global_feature = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+            # pointweise, global_feature = Head(data.float())
+            # pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+            global_feature = Head(data.float())
+            pred_ty, pred_num = Tail1(global_feature)
             logits = pred_ty.max(dim=1)[1]
             test_pred_cls.append(logits.detach().cpu().numpy())
             test_true_cls.append(ty.cpu().numpy())
@@ -311,8 +318,10 @@ if __name__ == "__main__":
                         help='number of episode to train ')
     parser.add_argument('--opt', type=str, default='adamw', choices=['sgd', 'adam', 'adamw'],
                         help='optimizer to use, [SGD, Adam, AdamW]')
-    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
-                        help='learning rate (default: 0.001, 0.1 if using sgd)')
+    parser.add_argument('--lr1', type=float, default=0.001, metavar='LR',
+                        help='learning rate for cls(default: 0.001, 0.1 if using sgd)')
+    parser.add_argument('--lr2', type=float, default=0.001, metavar='LR',
+                        help='learning rate for attr(default: 0.001)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--scheduler', type=str, default='cos', metavar='N',
