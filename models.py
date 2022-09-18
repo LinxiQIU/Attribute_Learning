@@ -380,6 +380,7 @@ class TWO_CLS(nn.Module):
         self.fc3 = nn.Linear(256, 3)
 
     def forward(self, x):
+        batch_size = x.size(0)
         x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)   # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)   # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x = torch.cat((x1, x2), 1)                              # (batch_size, emb_dims*2)
