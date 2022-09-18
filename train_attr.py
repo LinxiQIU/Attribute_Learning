@@ -44,7 +44,7 @@ def train(args, io):
                                  shuffle=True, drop_last=False)
     device = torch.device('cuda' if args.cuda else 'cpu')
     
-    Head = nn.DataParallel(DGCNN_core().to(device))
+    Head = nn.DataParallel(DGCNN_Core().to(device))
     Tail1 = nn.DataParallel(TWO_CLS().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
@@ -292,7 +292,7 @@ def train(args, io):
         writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
         writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
         writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
-        writer.add_scalar('Bolt_Pos_XZ', test_bpos_xz_error, epoch)
+        writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
         writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
 
 if __name__ == "__main__":
