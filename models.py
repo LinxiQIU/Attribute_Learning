@@ -373,10 +373,10 @@ class TWO_CLS(nn.Module):
         
         self.fc1 = nn.Linear(2048, 512, bias=False)
         self.bn3 = nn.BatchNorm1d(512)
-        self.dp3 = nn.Dropout(p=0.5)
+        self.dp3 = nn.Dropout(p=0.6)
         self.fc2 = nn.Linear(512, 256)
         self.bn4 = nn.BatchNorm1d(256)
-        self.dp4 = nn.Dropout(p=0.5)
+        self.dp4 = nn.Dropout(p=0.6)
         self.fc3 = nn.Linear(256, 3)
 
     def forward(self, x):

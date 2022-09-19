@@ -57,7 +57,20 @@ train_data = MotorAttribute(root_dir='E:\\dataset1000', csv_file='E:\\data\\moto
 train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=16, shuffle=True, drop_last=True)
 
 
-train_bpos = []
+train_true_profile = []
+train_pred_profile = []
+train_true_gpos = []
+train_pred_gpos = []
+train_true_gpos_xz = []
+train_pred_gpos_xz = []
+train_true_bpos = []
+train_pred_bpos = []
+train_true_bpos_xz = []
+train_pred_bpos_xz = []
+train_true_mrot = []
+train_pred_mrot = []
+train_m1 = []
+
 for p, l, t, A, n, m in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
 # for p, l, t, A, n, m in train_dataloader:
     x = torch.randn(16, 7)
@@ -88,28 +101,38 @@ for p, l, t, A, n, m in tqdm(train_dataloader, total=len(train_dataloader), smoo
     pred = l2(e)
     
     
-    # attr_np = A.view(16, -1).numpy()     # Size(16, 28)
-    # m_np = m.view(16, -1).numpy()       # Size(16, 28)
-    # pred_np = pred.detach().numpy()     # Size(16, 28)
+    attr_np = A.view(16, -1).numpy()     # Size(16, 28)
+    m_np = m.view(16, -1).numpy()       # Size(16, 28)
+    pred_np = pred.detach().numpy()     # Size(16, 28)
     # loss = mean_loss(pred_np, attr_np)
     # print(loss.shape)
-    # true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
-    # pred_mrot = np.array([x[25: 28] for x in pred_np])
+    profile = np.array([x[0:4] for x in attr_np])   # Size(16, 4)
+    pred_profile = np.array([x[0:4] for x in pred_np])   # Size(16, 4)
+    m1 = np.array([x[0:4] for x in m_np])   # Size(16, 4)
+    train_true_profile.append(profile.reshape(-1))
+    train_pred_profile.append(pred_profile.reshape(-1))
+    train_m1.append(m1.reshape(-1))
+    true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+    pred_mrot = np.array([x[25: 28] for x in pred_np])     # Size(16, 3)
     # mrot = np.abs(true_mrot - pred_mrot)
     # print(mrot)
     # train_mrot = np.mean(mrot)
     # print(train_mrot)
-    
-    
+    train_true_mrot.append(true_mrot.reshape(-1))
+    train_pred_mrot.append(pred_mrot.reshape(-1))
+train_true_profile = np.concatenate(train_true_profile)
+print(train_true_profile.shape)
+train_pred_profile = np.concatenate(train_pred_profile)
+train_m1 = np.concatenate(m)
+train_profile_error = mean_relative_error(train_true_profile, train_pred_profile, mask)    
+train_true_mrot = np.concatenate(train_true_mrot)   #Size(35520,)
+train_pred_mrot = np.concatenate(train_pred_mrot)
+train_mrot_error = np.mean(np.abs(train_true_mrot - train_pred_mrot))
+print(train_mrot_error)
     # num = torch.sub(n, 3)
     # print(num.shape)
     # print(n.shape)
-    # profile = np.array([x[0:4] for x in attr_np])   # Size(16, 4)
-    # # print(profile)
-    # pred_profile = np.array([x[0:4] for x in pred_np])   # Size(16, 4)
-    # # print(pred_profile)
-    # m1 = np.array([x[0:4] for x in m_np])   # Size(16, 4)
-    # # print(m1)
+    
     # error = mean_relative_error(profile, pred_profile, m1)
     # print(error)
     
