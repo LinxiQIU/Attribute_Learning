@@ -58,11 +58,11 @@ def train(args, io):
                         weight_decay=1e-4)
     elif args.opt == 'adam':
         print("Use Adam")
-        opt1 = optim.Adam(params1, lr=args.lr1, weight_decay=1e-4)
+        opt1 = optim.Adam(params1, lr=args.lr1, weight_decay=1e-2)
         opt2 = optim.Adam(params2, lr=args.lr2, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt1 = optim.AdamW(params1, lr=args.lr1, weight_decay=1e-4)
+        opt1 = optim.AdamW(params1, lr=args.lr1, weight_decay=1e-2)
         opt2 = optim.AdamW(params2, lr=args.lr2, weight_decay=1e-4)
     
     if args.scheduler == 'cos':
