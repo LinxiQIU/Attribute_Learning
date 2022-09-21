@@ -15,8 +15,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_net
-from utils import mean_loss, IOStream, normalize_data
+from models import DGCNN_net, DGCNN_cls
+from utils import mean_loss, IOStream, normalize_data, distance, mean_relative_error
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -55,7 +55,7 @@ def train(args, io):
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
@@ -65,6 +65,7 @@ def train(args, io):
     print("Starting from scratch!")
     
     criterion = mean_loss
+    best_mse = 100
     for epoch in range(args.epochs):
         ####################
         # Train
@@ -72,14 +73,19 @@ def train(args, io):
         train_loss = 0.0
         count = 0.0
         model.train()
-        for pc, ty, attr, num, mask in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
+        train_profile_error = []
+        train_gpos_xz = []
+        train_gpos = []
+        train_bpos = []
+        train_bpos_xz = []
+        train_mrot = []
+        for pc, seg, ty, attr, num, mask in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
             pc, ty, attr, num, mask = pc.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            t = ty.reshape(-1)
-            type_one_hot = F.one_hot(t.long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             opt.zero_grad()
             pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
             loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
@@ -87,7 +93,31 @@ def train(args, io):
             opt.step()
             count += batch_size
             train_loss += loss.item() * batch_size
-        
+
+            pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
+            attr_np = attr.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
+            pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
+            m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
+            train_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
+            true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
+            pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
+            m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
+            train_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
+            true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
+            pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
+            train_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
+            true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
+            pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
+            m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
+            train_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
+            bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
+            pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
+            train_bpos_xz.append(distance(bpos_xz, pred_bpos_xz, dim=2, mask=m3))
+            true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+            pred_mrot = np.array([x[25: 28] for x in pred_np])
+            train_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))        
         if args.scheduler == 'cos':
             scheduler.step()
         elif args.scheduler == 'step':
@@ -96,36 +126,92 @@ def train(args, io):
             if opt.param_groups[0]['lr'] < 1e-5:
                 for param_group in opt.param_groups:
                     param_group['lr'] = 1e-5
-                    
-        outstr = 'Train %d, Loss: %.6f' % (epoch, train_loss*1.0/count)
+        train_profile_error = np.mean(train_profile_error)
+        train_gpos_xz_error = np.mean(train_gpos_xz)
+        train_gpos_error = np.mean(train_gpos)
+        train_bpos_error = np.mean(train_bpos)
+        train_bpos_xz_error = np.mean(train_bpos_xz)
+        train_mrot_error = np.mean(train_mrot)
+
+        outstr = 'Train %d, Loss: %.6f, profile error: %.5f, gear pos mdist: %.5f, cbolt mdist: %.5f'%(epoch, train_loss/count, train_profile_error, train_gpos_error, train_bpos_error)
         io.cprint(outstr)
         writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
-        
+        writer.add_scalar('Profile/Train', train_profile_error, epoch)
+        writer.add_scalar('Gear_Pos/Train', train_gpos_error, epoch)
+        writer.add_scalar('Gear_Pos_XZ/Train', train_gpos_xz_error, epoch)
+        writer.add_scalar('Bolt_Pos/Train', train_bpos_error, epoch)
+        writer.add_scalar('Bolt_Pos_XZ/Train', train_bpos_xz_error, epoch)
+        writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
+                
         ####################
         # Validation
         ####################
         val_loss = 0.0
         count = 0.0
         model.eval()
-        for pc, ty, attr, num, m in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
-            pc, ty, attr, num, m = pc.to(device), ty.to(device), attr.to(device), num.to(device), m.to(device)
+        test_profile_error = []
+        test_gpos = []
+        test_gpos_xz = []
+        test_bpos = []
+        test_bpos_xz = []
+        test_mrot = []
+        for pc, seg, ty, attr, num, mask in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
+            pc, ty, attr, num, mask = pc.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
-            t = ty.reshape(-1)
-            type_one_hot = F.one_hot(t.long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=7)
+            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
-            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
+            loss = criterion(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
             count += batch_size
             val_loss += loss.item() * batch_size
-        
-        outstr = 'Test %d, Loss: %.6f' % (epoch, val_loss*1.0/count)
+            pred_np = pred_attr.detach().cpu().numpy()
+            attr_np = attr.view(batch_size, -1).cpu().numpy()
+            mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
+            pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
+            m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
+            test_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
+            true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
+            pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
+            m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
+            test_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
+            true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
+            pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
+            test_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
+            true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
+            pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
+            m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
+            test_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
+            true_bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
+            pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
+            test_bpos_xz.append(distance(true_bpos_xz, pred_bpos_xz, dim=2, mask=m3))
+            true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+            pred_mrot = np.array([x[25: 28] for x in pred_np])
+            test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
+        test_profile_error = np.mean(test_profile_error)
+        test_gpos_xz_error = np.mean(test_gpos_xz)
+        test_gpos_error = np.mean(test_gpos)
+        test_bpos_error = np.mean(test_bpos)
+        test_bpos_xz_error = np.mean(test_bpos_xz)
+        test_mrot_error = np.mean(test_mrot)
+        if val_loss/count <= best_mse:
+            best_mse = val_loss/count
+            state = {'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': opt.state_dict()}
+            torch.save(state, 'outputs/%s/%s/%s/models/attr_best.t7' % (args.model, args.exp_name, args.change))
+        io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
+        outstr = 'Test %d, Loss: %.6f, profile error: %.5f, gear pos mdist: %.5f, cbolt mdist: %.5f' % (epoch, val_loss*1.0/count, test_profile_error, test_gpos_error, test_bpos_error)
         io.cprint(outstr)
-
+        io.cprint('\n\n')
         writer.add_scalar('Loss/test loss', val_loss*1.0/count, epoch)
-        
+        writer.add_scalar('Profile/Test', test_profile_error, epoch)
+        writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
+        writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
+        writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
+        writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
+        writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Multi Attributes Regression')
