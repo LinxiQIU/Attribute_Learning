@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-# import numpy as np
+import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
