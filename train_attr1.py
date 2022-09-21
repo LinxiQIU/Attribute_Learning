@@ -27,8 +27,8 @@ def _init_():
         os.makedirs('outputs')
     if not os.path.exists('outputs/' + args.model + '/' + args.exp_name):
         os.makedirs('outputs/' + args.model + '/' + args.exp_name)
-    if not os.path.exists('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/model'):
-        os.makedirs('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/model')
+    if not os.path.exists('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/models'):
+        os.makedirs('outputs/' + args.model + '/' + args.exp_name + '/' + args.change + '/models')
 
 
 def train(args, io):
