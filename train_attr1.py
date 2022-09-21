@@ -55,7 +55,7 @@ def train(args, io):
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-2)
+        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     
     if args.scheduler == 'cos':
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
@@ -84,6 +84,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
+            num = torch.sub(num, 3)
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             opt.zero_grad()
@@ -161,6 +162,7 @@ def train(args, io):
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
+            num = torch.sub(num, 3)
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = model(data.float(), type_one_hot.float(), num_one_hot.float())
