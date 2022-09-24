@@ -234,7 +234,7 @@ if __name__ == "__main__":
                         help='Size of batch')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--epochs', type=int, default=50, metavar='N',
+    parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--opt', type=str, default='adamw', choices=['sgd', 'adam', 'adamw'],
                         help='optimizer to use, [SGD, Adam, AdamW]')

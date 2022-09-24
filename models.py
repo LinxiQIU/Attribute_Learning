@@ -345,13 +345,12 @@ class DGCNN_Core(nn.Module):
         
         x = torch.cat((x1, x2, x3), dim=1)     # (batch_size, 64+64+64=192, num_points)
         x4 = self.conv6(x)                     # (batch_size, 192, num_points) -> (batch_size, 1024, num_points)
-        return x4
-        # x = x4.max(dim=-1, keepdim=True)[0]    # (batch_size, 1024, num_points) -> (batch_size, 1024)
+        x = x4.max(dim=-1, keepdim=True)[0]    # (batch_size, 1024, num_points) -> (batch_size, 1024)
                
-        # x = x.repeat(1, 1, num_points)          # (batch_size, 1024) -> (batch_size, 1024, num_points)
-        # x = torch.cat((x1, x2, x3, x), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
+        x = x.repeat(1, 1, num_points)          # (batch_size, 1024) -> (batch_size, 1024, num_points)
+        x = torch.cat((x1, x2, x3, x), dim=1)   # (batch_size, 64+64+64+emb_dims(1024)=1216, num_points)
      
-        # return x, x4  # x -> pointweise feature for semantic segmentation, x4 -> 1024 global feature vector
+        return x, x4  # x -> pointweise feature for semantic segmentation, x4 -> 1024 global feature vector
 
 
 class TWO_CLS(nn.Module):
