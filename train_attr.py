@@ -45,7 +45,7 @@ def train(args, io):
     device = torch.device('cuda' if args.cuda else 'cpu')
     
     Head = nn.DataParallel(DGCNN_Core().to(device))
-    Tail1 = nn.DataParallel(TWO_CLS().to(device))
+    Tail1 = nn.DataParallel(CLS_Semseg().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
     params1 = list(Head.parameters()) + list(Tail1.parameters())
@@ -200,7 +200,8 @@ def train(args, io):
         train_bpos_error = np.mean(train_bpos)
         train_bpos_xz_error = np.mean(train_bpos_xz)
         train_mrot_error = np.mean(train_mrot)
-        outstr='Train %d, Loss: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, train_loss*1.0/count, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
+        outstr='Train %d, Loss: %.6f, seg acc: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
+            total_correct/float(total_seen), train_loss*1.0/count, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
         io.cprint(outstr)
         
         writer.add_scalar('learning rate/lr1', opt1.param_groups[0]['lr'], epoch)
@@ -235,6 +236,7 @@ def train(args, io):
         count = 0.0
         total_seen = 0
         total_correct = 0
+        total_seen = 0
         # labelweights = np.zeros(num_class)
         Head.eval()
         Tail1.eval()
@@ -265,6 +267,9 @@ def train(args, io):
             pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
             pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
             batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
+            correct = np.sum(pred_choice == batch_label)
+            total_correct += correct
+            total_seen += batch_size * args.num_points
             logits = pred_ty.max(dim=1)[1]
             test_pred_cls.append(logits.detach().cpu().numpy())
             test_true_cls.append(ty.cpu().numpy())
@@ -324,8 +329,9 @@ def train(args, io):
         test_bpos_error = np.mean(test_bpos)
         test_bpos_xz_error = np.mean(test_bpos_xz)
         test_mrot_error = np.mean(test_mrot)
-        outstr_val = 'Test %d, Loss: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, test_loss*1.0/count, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
-        io.cprint(outstr_val)
+        outstr_val = 'Test %d, Loss: %.6f, seg acc: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
+            test_loss*1.0/count, total_correct/float(total_seen), test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
+        io.cprint(outstr_val) 
 
         writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Test', test_type_cls, epoch)
