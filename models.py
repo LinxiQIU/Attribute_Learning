@@ -397,7 +397,7 @@ class CLS_Semseg(nn.Module):
         super(CLS_Semseg, self).__init__()
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
-        self.conv1 = nn.Sequential(nn.Conv1d(1536, 512, kernel_size=1, bias=False),         #1216*512=622592
+        self.conv1 = nn.Sequential(nn.Conv1d(1216, 512, kernel_size=1, bias=False),         #1216*512=622592
                                    self.bn1,        #2048
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, bias=False),      #512*256=131072
