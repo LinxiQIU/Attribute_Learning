@@ -48,29 +48,24 @@ def train(args, io):
     Tail1 = nn.DataParallel(CLS_Semseg().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
-    params1 = list(Head.parameters()) + list(Tail1.parameters())
-    params2 = list(Head.parameters()) + list(Tail2.parameters())
+    params = list(Head.parameters()) + list(Tail1.parameters()) + list(Tail2.parameters())
     if args.opt == 'sgd':
         print("Use SGD")        
-        opt1 = optim.SGD(params1, lr=args.lr1*100, momentum=args.momentum, 
-                        weight_decay=1e-4)
-        opt2 = optim.SGD(params2, lr=args.lr2*100, momentum=args.momentum, 
+        opt = optim.SGD(params, lr=args.lr*100, momentum=args.momentum, 
                         weight_decay=1e-4)
     elif args.opt == 'adam':
         print("Use Adam")
-        opt1 = optim.Adam(params1, lr=args.lr1, weight_decay=1e-2)
-        opt2 = optim.Adam(params2, lr=args.lr2, weight_decay=1e-4)
+        opt = optim.Adam(params, lr=args.lr, weight_decay=1e-2)
+
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt1 = optim.AdamW(params1, lr=args.lr1, weight_decay=1e-2)
-        opt2 = optim.AdamW(params2, lr=args.lr2, weight_decay=1e-4)
+        opt = optim.AdamW(params, lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
-        scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
-        scheduler2 = CosineAnnealingLR(opt2, args.epochs, eta_min=1e-5)
+        scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
     elif args.scheduler == 'step':
-        scheduler1 = StepLR(opt1, step_size=60, gamma=0.2)
-        scheduler2 = StepLR(opt2, step_size=60, gamma=0.2)
+        scheduler = StepLR(opt, step_size=60, gamma=0.2)
+
     
     print("Starting from scratch!")
     
@@ -108,17 +103,21 @@ def train(args, io):
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
             opt1.zero_grad()
-            pointweise1, global_feature1 = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
+            pointweise, global_feature = Head(data.float())
+            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
+            pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+            pred_attr = Tail2(global_feature, type_one_hot.float(), num_one_hot.float()) 
             pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
             # global_feature1 = Head(data.float())
             # pred_ty, pred_num = Tail1(global_feature1)
             loss_cls = criterion1(pred_ty, ty.squeeze())
             loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
             loss_num = criterion1(pred_num, num.squeeze())
-            loss1 = loss_cls + loss_seg + loss_num
+            loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
+            loss = loss_cls + loss_seg + loss_num + loss_attr
             # loss1 = loss_cls + loss_num
-            loss1.backward()
+            loss.backward()
             opt1.step()
             logits = pred_ty.max(dim=1)[1]
             train_pred_cls.append(logits.detach().cpu().numpy())
@@ -134,20 +133,8 @@ def train(args, io):
             for l in range(num_class):
                 total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
                 total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
-        
-            sd1 = Head.state_dict()            
-            Head.load_state_dict(sd1)
-            opt2.zero_grad()
-            pointweise2, global_feature2 = Head(data.float())
-            # global_feature2 = Head(data.float())                       
-            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
-            pred_attr = Tail2(global_feature2, type_one_hot.float(), num_one_hot.float())          
-            loss2 = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
-            loss2.backward()
-            opt2.step()
             count += batch_size
-            train_loss += loss2.item() * batch_size
+            train_loss += loss.item() * batch_size
                         
             pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
             attr_np = attr.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
@@ -175,14 +162,12 @@ def train(args, io):
             train_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
             
         if args.scheduler == 'cos':
-            scheduler1.step()
-            scheduler2.step()
+            scheduler.step()
         elif args.scheduler == 'step':
-            if opt1.param_groups[0]['lr'] > 1e-5:
-                scheduler1.step()
-                scheduler2.step()
-            if opt1.param_groups[0]['lr'] < 1e-5:
-                for param_group in opt1.param_groups:
+            if opt.param_groups[0]['lr'] > 1e-5:
+                scheduler.step()
+            if opt.param_groups[0]['lr'] < 1e-5:
+                for param_group in opt.param_groups:
                     param_group['lr'] = 1e-5
 
         mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float64) + 1e-6))
@@ -200,12 +185,11 @@ def train(args, io):
         train_bpos_error = np.mean(train_bpos)
         train_bpos_xz_error = np.mean(train_bpos_xz)
         train_mrot_error = np.mean(train_mrot)
-        outstr='Train %d, Loss: %.6f, seg acc: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
-            train_loss*1.0/count, total_correct/float(total_seen), train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
+        outstr='Train %d, Loss: %.6f, mIoU: %.5f, cb_IoU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
+            train_loss*1.0/count, mIoU, cb_iou, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
         io.cprint(outstr)
         
-        writer.add_scalar('learning rate/lr1', opt1.param_groups[0]['lr'], epoch)
-        writer.add_scalar('learning rate/lr2', opt2.param_groups[0]['lr'], epoch)
+        writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Train', train_type_cls, epoch)
         writer.add_scalar('Cbolt_Num/Train', train_num_acc, epoch)
@@ -218,16 +202,6 @@ def train(args, io):
         writer.add_scalar('Bolt_Pos/Train', train_bpos_error, epoch)
         writer.add_scalar('Bolt_Pos_XZ/Train', train_bpos_xz_error, epoch)
         writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
-
-        if train_loss/count <= best_mse:
-            best_mse = train_loss/count
-            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
-            torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
-            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict()}
-            torch.save(state2, 'outputs/%s/%s/%s/models/best_tail1.t7' % (args.model, args.exp_name, args.change))
-            state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
-            torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
-            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
             
         ####################
         # Test
@@ -262,9 +236,17 @@ def train(args, io):
             num = torch.sub(num, 3)
             pointweise, global_feature = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
+            pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
             # global_feature = Head(data.float())
             # pred_ty, pred_num = Tail1(global_feature)
             pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
+            loss_cls = criterion1(pred_ty, ty.squeeze())
+            loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
+            loss_num = criterion1(pred_num, num.squeeze())
+            loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
+            loss = loss_cls + loss_seg + loss_num + loss_attr
             pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
             batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
             correct = np.sum(pred_choice == batch_label)
@@ -275,11 +257,7 @@ def train(args, io):
             test_true_cls.append(ty.cpu().numpy())
             cb_num = pred_num.max(dim=1)[1]
             test_pred_num.append(cb_num.detach().cpu().numpy())
-            test_true_num.append(num.cpu().numpy())
-            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
-            pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
-            loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
+            test_true_num.append(num.cpu().numpy())           
             count += batch_size
             test_loss += loss.item() * batch_size
             # tmp, _ = np.histogram(batch_label, range(num_class + 1))
@@ -329,10 +307,10 @@ def train(args, io):
         test_bpos_error = np.mean(test_bpos)
         test_bpos_xz_error = np.mean(test_bpos_xz)
         test_mrot_error = np.mean(test_mrot)
-        outstr_val = 'Test %d, Loss: %.6f, seg acc: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
-            test_loss*1.0/count, total_correct/float(total_seen), test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
+        outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
+            test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
         io.cprint(outstr_val) 
-
+        io.cprint('\n\n')
         writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Test', test_type_cls, epoch)
         writer.add_scalar('Cbolt_Num/Test', test_num_acc, epoch)
@@ -346,6 +324,16 @@ def train(args, io):
         writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
         writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
 
+        if test_loss/count <= best_mse:
+            best_mse = test_loss/count
+            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
+            torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
+            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict()}
+            torch.save(state2, 'outputs/%s/%s/%s/models/best_tail1.t7' % (args.model, args.exp_name, args.change))
+            state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
+            torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
+            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Multi Attributes Regression')
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
@@ -358,7 +346,7 @@ if __name__ == "__main__":
     parser.add_argument('--root', type=str, metavar='N',
                         help='folder of dataset')
     parser.add_argument('--csv', type=str,
-                        help='moter attributes')
+                        help='motor attributes')
     parser.add_argument('--mask', type=str,
                         help='attributes mask')
     parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
@@ -369,10 +357,8 @@ if __name__ == "__main__":
                         help='number of episode to train ')
     parser.add_argument('--opt', type=str, default='adamw', choices=['sgd', 'adam', 'adamw'],
                         help='optimizer to use, [SGD, Adam, AdamW]')
-    parser.add_argument('--lr1', type=float, default=0.001, metavar='LR',
-                        help='learning rate for cls(default: 0.001, 0.1 if using sgd)')
-    parser.add_argument('--lr2', type=float, default=0.001, metavar='LR',
-                        help='learning rate for attr(default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+                        help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--scheduler', type=str, default='cos', metavar='N',

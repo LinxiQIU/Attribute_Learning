@@ -223,7 +223,7 @@ def mean_relative_error(y_true, y_pred, mask):
     error = []
     for i in range(len(y_true)):
         e = np.abs(y_true[i] - y_pred[i])
-        if mask[i][3] == 0.0:
+        if mask[i][3] < 1e-9:
             er = e[:3] / y_true[i][:3]
         else:
             er = e / y_true[i]
