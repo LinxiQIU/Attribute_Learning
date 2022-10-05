@@ -102,7 +102,7 @@ def train(args, io):
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
-            opt1.zero_grad()
+            opt.zero_grad()
             pointweise, global_feature = Head(data.float())
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
@@ -118,7 +118,7 @@ def train(args, io):
             loss = loss_cls + loss_seg + loss_num + loss_attr
             # loss1 = loss_cls + loss_num
             loss.backward()
-            opt1.step()
+            opt.step()
             logits = pred_ty.max(dim=1)[1]
             train_pred_cls.append(logits.detach().cpu().numpy())
             train_true_cls.append(ty.cpu().numpy())
