@@ -70,7 +70,7 @@ def train(args, io):
     print("Starting from scratch!")
     
     criterion1 = cal_loss
-    criterion2 = mean_loss
+    # criterion2 = mean_loss
     num_class = 7
     best_mse = 100
     for epoch in range(args.epochs):
@@ -83,19 +83,19 @@ def train(args, io):
         total_correct = 0
         Head.train()
         Tail1.train()
-        Tail2.train()
+        # Tail2.train()
         train_pred_cls = []
         train_true_cls = []
         train_pred_num = []
         train_true_num = []
         total_correct_class = [0 for _ in range(num_class)]
         total_iou_deno_class = [0 for _ in range(num_class)]
-        train_profile_error = []
-        train_gpos_xz = []
-        train_gpos = []
-        train_bpos = []
-        train_bpos_xz = []
-        train_mrot = []
+        # train_profile_error = []
+        # train_gpos_xz = []
+        # train_gpos = []
+        # train_bpos = []
+        # train_bpos_xz = []
+        # train_mrot = []
         for pc, seg, ty, attr, num, mask in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
             pc, seg, ty, attr, num, mask = pc.to(device), seg.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
@@ -104,19 +104,16 @@ def train(args, io):
             num = torch.sub(num, 3)
             opt.zero_grad()
             pointweise, global_feature = Head(data.float())
-            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
+            # type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            # num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
-            pred_attr = Tail2(global_feature, type_one_hot.float(), num_one_hot.float()) 
+            # pred_attr = Tail2(global_feature, type_one_hot.float(), num_one_hot.float()) 
             pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
-            # global_feature1 = Head(data.float())
-            # pred_ty, pred_num = Tail1(global_feature1)
             loss_cls = criterion1(pred_ty, ty.squeeze())
             loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
             loss_num = criterion1(pred_num, num.squeeze())
-            loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
-            loss = loss_cls + loss_seg + loss_num + loss_attr
-            # loss1 = loss_cls + loss_num
+            # loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=mask)
+            loss = loss_cls + loss_seg + loss_num 
             loss.backward()
             opt.step()
             logits = pred_ty.max(dim=1)[1]
@@ -136,30 +133,30 @@ def train(args, io):
             count += batch_size
             train_loss += loss.item() * batch_size
                         
-            pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
-            attr_np = attr.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
-            mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
-            profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
-            pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
-            m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
-            train_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
-            true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
-            pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
-            m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
-            train_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
-            true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
-            pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
-            train_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
-            true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
-            pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
-            m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
-            train_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
-            bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
-            pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
-            train_bpos_xz.append(distance(bpos_xz, pred_bpos_xz, dim=2, mask=m3))
-            true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
-            pred_mrot = np.array([x[25: 28] for x in pred_np])
-            train_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
+            # pred_np = pred_attr.detach().cpu().numpy()        # Size(16, 28)
+            # attr_np = attr.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            # mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            # profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
+            # pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
+            # m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
+            # train_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
+            # true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
+            # pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
+            # m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
+            # train_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
+            # true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
+            # pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
+            # train_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
+            # true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
+            # pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
+            # m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
+            # train_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
+            # bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
+            # pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
+            # train_bpos_xz.append(distance(bpos_xz, pred_bpos_xz, dim=2, mask=m3))
+            # true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+            # pred_mrot = np.array([x[25: 28] for x in pred_np])
+            # train_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
             
         if args.scheduler == 'cos':
             scheduler.step()
@@ -179,16 +176,17 @@ def train(args, io):
         train_pred_num = np.concatenate(train_pred_num)
         train_true_num = np.concatenate(train_true_num)
         train_num_acc = accuracy_score(train_true_num, train_pred_num)
-        train_profile_error = np.mean(train_profile_error)
-        train_gpos_xz_error = np.mean(train_gpos_xz)
-        train_gpos_error = np.mean(train_gpos)
-        train_bpos_error = np.mean(train_bpos)
-        train_bpos_xz_error = np.mean(train_bpos_xz)
-        train_mrot_error = np.mean(train_mrot)
-        outstr='Train %d, Loss: %.6f, mIoU: %.5f, cb_IoU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
-            train_loss*1.0/count, mIoU, cb_iou, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
-        io.cprint(outstr)
-        
+        # train_profile_error = np.mean(train_profile_error)
+        # train_gpos_xz_error = np.mean(train_gpos_xz)
+        # train_gpos_error = np.mean(train_gpos)
+        # train_bpos_error = np.mean(train_bpos)
+        # train_bpos_xz_error = np.mean(train_bpos_xz)
+        # train_mrot_error = np.mean(train_mrot)
+        # outstr='Train %d, Loss: %.6f, mIoU: %.5f, cb_IoU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
+        #     train_loss*1.0/count, mIoU, cb_iou, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
+        outstr = 'Train %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolt num acc: %.5f'%(epoch,
+            train_loss*1.0/count, mIoU, cb_iou, train_type_cls, train_num_acc)
+        io.cprint(outstr)        
         writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Train', train_type_cls, epoch)
@@ -196,12 +194,12 @@ def train(args, io):
         writer.add_scalar('mIoU/Train', mIoU, epoch)
         writer.add_scalar('Cbolt_IoU/Train', cb_iou, epoch)
         writer.add_scalar('Bolt_IoU/Train', bolt_iou, epoch)
-        writer.add_scalar('Profile/Train', train_profile_error, epoch)
-        writer.add_scalar('Gear_Pos/Train', train_gpos_error, epoch)
-        writer.add_scalar('Gear_Pos_XZ/Train', train_gpos_xz_error, epoch)
-        writer.add_scalar('Bolt_Pos/Train', train_bpos_error, epoch)
-        writer.add_scalar('Bolt_Pos_XZ/Train', train_bpos_xz_error, epoch)
-        writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
+        # writer.add_scalar('Profile/Train', train_profile_error, epoch)
+        # writer.add_scalar('Gear_Pos/Train', train_gpos_error, epoch)
+        # writer.add_scalar('Gear_Pos_XZ/Train', train_gpos_xz_error, epoch)
+        # writer.add_scalar('Bolt_Pos/Train', train_bpos_error, epoch)
+        # writer.add_scalar('Bolt_Pos_XZ/Train', train_bpos_xz_error, epoch)
+        # writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
             
         ####################
         # Test
@@ -214,7 +212,7 @@ def train(args, io):
         # labelweights = np.zeros(num_class)
         Head.eval()
         Tail1.eval()
-        Tail2.eval()
+        # Tail2.eval()
         test_pred_cls = []
         test_true_cls = []
         test_pred_num = []
@@ -222,12 +220,12 @@ def train(args, io):
         total_seen_class = [0 for _ in range(num_class)]
         total_correct_class_ = [0 for _ in range(num_class)]
         total_iou_deno_class_ = [0 for _ in range(num_class)]
-        test_profile_error = []
-        test_gpos = []
-        test_gpos_xz = []
-        test_bpos = []
-        test_bpos_xz = []
-        test_mrot = []
+        # test_profile_error = []
+        # test_gpos = []
+        # test_gpos_xz = []
+        # test_bpos = []
+        # test_bpos_xz = []
+        # test_mrot = []
         for pc, seg, ty, attr, num, mask in tqdm(test_dataloader, total=len(test_dataloader), smoothing=0.9):
             pc, seg, ty, attr, num, m = pc.to(device), seg.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
@@ -236,17 +234,15 @@ def train(args, io):
             num = torch.sub(num, 3)
             pointweise, global_feature = Head(data.float())
             pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
-            type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
-            num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
-            pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
-            # global_feature = Head(data.float())
-            # pred_ty, pred_num = Tail1(global_feature)
+            # type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
+            # num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
+            # pred_attr = Tail2(global_feature.float(), type_one_hot.float(), num_one_hot.float())
             pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
             loss_cls = criterion1(pred_ty, ty.squeeze())
             loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
             loss_num = criterion1(pred_num, num.squeeze())
-            loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
-            loss = loss_cls + loss_seg + loss_num + loss_attr
+            # loss_attr = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
+            loss = loss_cls + loss_seg + loss_num 
             pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
             batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
             correct = np.sum(pred_choice == batch_label)
@@ -266,30 +262,30 @@ def train(args, io):
                 total_seen_class[l] += np.sum(batch_label == l)
                 total_correct_class_[l] += np.sum((pred_choice == l) & (batch_label == l))     ### Intersection
                 total_iou_deno_class_[l] += np.sum((pred_choice == l) | (batch_label == l))    ### Union
-            pred_np = pred_attr.detach().cpu().numpy()
-            attr_np = attr.view(batch_size, -1).cpu().numpy()
-            mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
-            profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
-            pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
-            m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
-            test_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
-            true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
-            pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
-            m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
-            test_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
-            true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
-            pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
-            test_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
-            true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
-            pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
-            m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
-            test_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
-            true_bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
-            pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
-            test_bpos_xz.append(distance(true_bpos_xz, pred_bpos_xz, dim=2, mask=m3))
-            true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
-            pred_mrot = np.array([x[25: 28] for x in pred_np])
-            test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
+            # pred_np = pred_attr.detach().cpu().numpy()
+            # attr_np = attr.view(batch_size, -1).cpu().numpy()
+            # mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
+            # profile = np.array([x[0:4] for x in attr_np])        # Size(16, 4)
+            # pred_profile = np.array([x[0:4] for x in pred_np])     # Size(16, 4)
+            # m1 = np.array([x[0:4] for x in mask_np])                 # Size(16, 4)
+            # test_profile_error.append(mean_relative_error(profile, pred_profile, mask=m1)) 
+            # true_gpos_xz = np.array([x[i] for x in attr_np for i in [4, 6, 7, 9]])    # Size(64,)
+            # pred_gpos_xz = np.array([x[i] for x in pred_np for i in [4, 6, 7, 9]])
+            # m2 = np.array([x[i] for x in mask_np for i in [4, 7]])    #(32,) 
+            # test_gpos_xz.append(distance(true_gpos_xz, pred_gpos_xz, dim=2, mask=m2))
+            # true_gpos = np.array([x[4: 10] for x in attr_np])         #Size(16, 6)
+            # pred_gpos = np.array([x[4: 10] for x in pred_np])         #Size(16, 6) 
+            # test_gpos.append(distance(true_gpos.reshape(-1), pred_gpos.reshape(-1), dim=3, mask=m2))
+            # true_bpos = np.array([x[10: 25] for x in attr_np]).reshape(-1)      # Size(16*15=240)
+            # pred_bpos = np.array([x[10: 25] for x in pred_np]).reshape(-1)
+            # m3 = np.array([x[i] for x in mask_np for i in [10, 13, 16, 19, 22]])   # Size(16*5=80,)
+            # test_bpos.append(distance(true_bpos, pred_bpos, dim=3, mask=m3))
+            # true_bpos_xz = np.array([x[i] for x in attr_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])      # Size(16*10=160,)
+            # pred_bpos_xz = np.array([x[i] for x in pred_np for i in [10, 12, 13, 15, 16, 18, 19, 21, 22, 24]])
+            # test_bpos_xz.append(distance(true_bpos_xz, pred_bpos_xz, dim=2, mask=m3))
+            # true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
+            # pred_mrot = np.array([x[25: 28] for x in pred_np])
+            # test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
 
         test_pred_cls = np.concatenate(test_pred_cls)
         test_true_cls = np.concatenate(test_true_cls)
@@ -301,14 +297,16 @@ def train(args, io):
         test_mIoU = np.mean(np.array(total_correct_class_) / (np.array(total_iou_deno_class_, dtype=np.float64) + 1e-6))
         test_cb_iou = total_correct_class_[6] / float(total_iou_deno_class_[6])
         test_bolt_iou = (total_correct_class_[5] + total_correct_class_[6]) / (float(total_iou_deno_class_[5]) + float(total_iou_deno_class_[6]))
-        test_profile_error = np.mean(test_profile_error)
-        test_gpos_xz_error = np.mean(test_gpos_xz)
-        test_gpos_error = np.mean(test_gpos)
-        test_bpos_error = np.mean(test_bpos)
-        test_bpos_xz_error = np.mean(test_bpos_xz)
-        test_mrot_error = np.mean(test_mrot)
-        outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
-            test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
+        # test_profile_error = np.mean(test_profile_error)
+        # test_gpos_xz_error = np.mean(test_gpos_xz)
+        # test_gpos_error = np.mean(test_gpos)
+        # test_bpos_error = np.mean(test_bpos)
+        # test_bpos_xz_error = np.mean(test_bpos_xz)
+        # test_mrot_error = np.mean(test_mrot)
+        # outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
+        #     test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
+        outstr_val = 'Train %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolt num acc: %.5f'%(epoch,
+            test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc)
         io.cprint(outstr_val) 
         
         writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
@@ -317,22 +315,22 @@ def train(args, io):
         writer.add_scalar('mIoU/Test', test_mIoU, epoch)
         writer.add_scalar('Cbolt_IoU/Test', test_cb_iou, epoch)
         writer.add_scalar('Bolt_IoU/Test', test_bolt_iou, epoch)
-        writer.add_scalar('Profile/Test', test_profile_error, epoch)
-        writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
-        writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
-        writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
-        writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
-        writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
+        # writer.add_scalar('Profile/Test', test_profile_error, epoch)
+        # writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
+        # writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
+        # writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
+        # writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
+        # writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
 
         if test_loss/count <= best_mse:
             best_mse = test_loss/count
-            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
+            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict(), 'optimizer_state_dict': opt.state_dict()}
             torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
-            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict()}
+            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict(), 'optimizer_state_dict': opt.state_dict()}
             torch.save(state2, 'outputs/%s/%s/%s/models/best_tail1.t7' % (args.model, args.exp_name, args.change))
-            state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
-            torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
-            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
+            # state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
+            # torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
+            # io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
         io.cprint('\n\n')
 
 if __name__ == "__main__":
