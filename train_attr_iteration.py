@@ -63,7 +63,7 @@ def train(args, io):
     elif args.opt == 'adamw':
         print("Use AdamW")
         opt1 = optim.AdamW(params1, lr=args.lr1, weight_decay=1e-2)
-        opt2 = optim.AdamW(params2, lr=args.lr2, weight_decay=1e-4)
+        opt2 = optim.AdamW(params2, lr=args.lr2, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
         scheduler1 = CosineAnnealingLR(opt1, args.epochs, eta_min=1e-5)
