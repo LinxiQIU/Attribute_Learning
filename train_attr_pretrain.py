@@ -46,9 +46,9 @@ def train(args, io):
     
     Head = nn.DataParallel(DGCNN_Core().to(device))
     Tail1 = nn.DataParallel(CLS_Semseg().to(device))
-    Tail2 = nn.DataParallel(Attribute().to(device))
+    # Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
-    params = list(Head.parameters()) + list(Tail1.parameters()) + list(Tail2.parameters())
+    params = list(Head.parameters()) + list(Tail1.parameters()) 
     if args.opt == 'sgd':
         print("Use SGD")        
         opt = optim.SGD(params, lr=args.lr*100, momentum=args.momentum, 
@@ -305,7 +305,7 @@ def train(args, io):
         # test_mrot_error = np.mean(test_mrot)
         # outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
         #     test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
-        outstr_val = 'Train %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolt num acc: %.5f'%(epoch,
+        outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolt num acc: %.5f'%(epoch,
             test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc)
         io.cprint(outstr_val) 
         
