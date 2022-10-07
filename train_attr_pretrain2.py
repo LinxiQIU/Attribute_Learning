@@ -45,16 +45,17 @@ def train(args, io):
     Head = nn.DataParallel(DGCNN_Core().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
+    params = list(Head.parameters()) + list(Tail2.parameters())
     if args.opt == 'sgd':
         print("Use SGD")
-        opt = optim.SGD(model.parameters(), lr=args.lr*100, momentum=args.momentum, 
+        opt = optim.SGD(params, lr=args.lr*100, momentum=args.momentum, 
                         weight_decay=1e-4)
     elif args.opt == 'adam':
         print("Use Adam")
-        opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        opt = optim.Adam(params, lr=args.lr, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-2)
+        opt = optim.AdamW(params, lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
