@@ -402,7 +402,7 @@ if __name__ == "__main__":
                         help='Which datablocks to use for validation')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
-    parser.add_argument('--with_seg', type=bool, default=True,
+    parser.add_argument('--with_seg', type=bool, default=False,
                         help='semantic segmentation in tail1 block')
     args = parser.parse_args()
     
