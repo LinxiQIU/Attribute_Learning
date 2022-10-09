@@ -98,7 +98,7 @@ def train(args, io):
         train_bpos_xz = []
         train_mrot = []
         for pc, seg, ty, attr, num, mask in tqdm(train_dataloader, total=len(train_dataloader), smoothing=0.9):
-            pc, ty, attr, num, mask = pc.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
+            pc, seg, ty, attr, num, mask = pc.to(device), seg.to(device), ty.to(device), attr.to(device), num.to(device), mask.to(device)
             pc = normalize_data(pc)
             data = pc.permute(0, 2, 1)
             batch_size = data.size()[0]
