@@ -45,7 +45,7 @@ def train(args, io):
     device = torch.device('cuda' if args.cuda else 'cpu')
     
     Head = nn.DataParallel(DGCNN_Core().to(device))
-    if args.with_seg:
+    if args.with_seg is True:
         print('With semseg!')
         Tail1 = nn.DataParallel(CLS_Semseg().to(device))
     else:
@@ -107,13 +107,21 @@ def train(args, io):
             num = torch.sub(num, 3)
             opt.zero_grad()
             pointweise, global_feature = Head(data.float())
-            if args.with_seg:
+            if args.with_seg is True:
                 pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
                 pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
                 loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
                 loss_cls = criterion1(pred_ty, ty.squeeze())            
                 loss_num = criterion1(pred_num, num.squeeze())
                 loss1 = loss_seg + loss_cls + loss_num
+                pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
+                batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
+                correct = np.sum(pred_choice == batch_label)
+                total_correct += correct
+                total_seen += (batch_size * args.num_points)
+                for l in range(num_class):
+                    total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
+                    total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
             else:
                 pred_ty, pred_num = Tail1(global_feature)
                 loss_cls = criterion1(pred_ty, ty.squeeze())            
@@ -131,16 +139,7 @@ def train(args, io):
             train_true_cls.append(ty.cpu().numpy())
             cb_num = pred_num.max(dim=1)[1]
             train_pred_num.append(cb_num.detach().cpu().numpy())
-            train_true_num.append(num.cpu().numpy())
-            if args.with_seg:
-                pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
-                batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
-                correct = np.sum(pred_choice == batch_label)
-                total_correct += correct
-                total_seen += (batch_size * args.num_points)
-                for l in range(num_class):
-                    total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
-                    total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
+            train_true_num.append(num.cpu().numpy())                
             count += batch_size
             train_loss += loss.item() * batch_size
                         
@@ -177,7 +176,7 @@ def train(args, io):
             if opt.param_groups[0]['lr'] < 1e-5:
                 for param_group in opt.param_groups:
                     param_group['lr'] = 1e-5
-        if args.with_seg:
+        if args.with_seg is True:
             mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float64) + 1e-6))
             cb_iou = total_correct_class[6]/float(total_iou_deno_class[6])
             bolt_iou = (total_correct_class[5] + total_correct_class[6])/(float(total_iou_deno_class[5]) + float(total_iou_deno_class[6]))
@@ -196,7 +195,7 @@ def train(args, io):
         train_bpos_error = np.mean(train_bpos)
         train_bpos_xz_error = np.mean(train_bpos_xz)
         train_mrot_error = np.mean(train_mrot)
-        if args.with_seg:
+        if args.with_seg is True:
             outstr='Train %d, Loss: %.5f, mIoU: %.5f, cb_IoU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
                 train_loss*1.0/count, mIoU, cb_iou, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error, train_mrot_error)
         else:
@@ -247,7 +246,7 @@ def train(args, io):
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
             pointweise, global_feature = Head(data.float())
-            if args.with_seg:
+            if args.with_seg is True:
                 pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
                 pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
                 loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
@@ -306,7 +305,8 @@ def train(args, io):
             true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
             pred_mrot = np.array([x[25: 28] for x in pred_np])
             test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
-        if args.with_seg:
+
+        if args.with_seg is True:
             test_mIoU = np.mean(np.array(total_correct_class_) / (np.array(total_iou_deno_class_, dtype=np.float64) + 1e-6))
             test_cb_iou = total_correct_class_[6] / float(total_iou_deno_class_[6])
             test_bolt_iou = (total_correct_class_[5] + total_correct_class_[6]) / (float(total_iou_deno_class_[5]) + float(total_iou_deno_class_[6]))
@@ -325,7 +325,7 @@ def train(args, io):
         test_bpos_error = np.mean(test_bpos)
         test_bpos_xz_error = np.mean(test_bpos_xz)
         test_mrot_error = np.mean(test_mrot)
-        if args.with_seg:
+        if args.with_seg is True:
             outstr_val = 'Test %d, Loss: %.5f, mIoU: %.5f, cb_IOU: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
                 test_loss*1.0/count, test_mIoU, test_cb_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error, test_mrot_error)
         else:
