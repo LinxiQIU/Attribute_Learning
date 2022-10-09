@@ -46,8 +46,10 @@ def train(args, io):
     
     Head = nn.DataParallel(DGCNN_Core().to(device))
     if args.with_seg:
+        print('With semseg!')
         Tail1 = nn.DataParallel(CLS_Semseg().to(device))
     else:
+        print('No semseg!')
         Tail1 = nn.DataParallel(TWO_CLS().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
