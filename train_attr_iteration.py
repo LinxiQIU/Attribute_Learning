@@ -130,7 +130,7 @@ def train(args, io):
                     total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
                     total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
             else:
-                pred_ty, pred_num = Tail1(global_feature)
+                pred_ty, pred_num = Tail1(global_feature1)
                 loss_cls = criterion1(pred_ty, ty.squeeze())            
                 loss_num = criterion1(pred_num, num.squeeze())
                 loss1 = loss_cls + loss_num
