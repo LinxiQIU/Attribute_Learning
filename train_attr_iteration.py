@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_Core, Attribute, CLS_Semseg
+from models import DGCNN_Core, Attribute, CLS_Semseg, TWO_CLS
 from utils import cal_loss, mean_loss, IOStream, normalize_data, distance, mean_relative_error
 from sklearn.metrics import accuracy_score
 from torch.utils.tensorboard import SummaryWriter
@@ -45,7 +45,12 @@ def train(args, io):
     device = torch.device('cuda' if args.cuda else 'cpu')
     
     Head = nn.DataParallel(DGCNN_Core().to(device))
-    Tail1 = nn.DataParallel(CLS_Semseg().to(device))
+    if args.with_seg is True:
+        print('With semantic segmentation!')
+        Tail1 = nn.DataParallel(CLS_Semseg().to(device))
+    else:
+        print('No semantic segmentation!')
+        Tail1 = nn.DataParallel(TWO_CLS().to(device))
     Tail2 = nn.DataParallel(Attribute().to(device))
     print("Let's use", torch.cuda.device_count(), "GPU!")
     params1 = list(Head.parameters()) + list(Tail1.parameters())
@@ -109,15 +114,26 @@ def train(args, io):
             num = torch.sub(num, 3)
             opt1.zero_grad()
             pointweise1, global_feature1 = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
-            pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
-            # global_feature1 = Head(data.float())
-            # pred_ty, pred_num = Tail1(global_feature1)
-            loss_cls = criterion1(pred_ty, ty.squeeze())
-            loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
-            loss_num = criterion1(pred_num, num.squeeze())
-            loss1 = loss_cls + loss_seg + loss_num
-            # loss1 = loss_cls + loss_num
+            if args.with_seg is True:
+                pred_seg, pred_ty, pred_num = Tail1(pointweise1, global_feature1)
+                pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
+                loss_cls = criterion1(pred_ty, ty.squeeze())
+                loss_seg = criterion1(pred_seg, seg.view(-1, 1).squeeze())
+                loss_num = criterion1(pred_num, num.squeeze())
+                loss1 = loss_cls + loss_seg + loss_num
+                pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
+                batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
+                correct = np.sum(pred_choice == batch_label)
+                total_correct += correct
+                total_seen += (batch_size * args.num_points)
+                for l in range(num_class):
+                    total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
+                    total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
+            else:
+                pred_ty, pred_num = Tail1(global_feature)
+                loss_cls = criterion1(pred_ty, ty.squeeze())            
+                loss_num = criterion1(pred_num, num.squeeze())
+                loss1 = loss_cls + loss_num
             loss1.backward()
             opt1.step()
             logits = pred_ty.max(dim=1)[1]
@@ -125,21 +141,11 @@ def train(args, io):
             train_true_cls.append(ty.cpu().numpy())
             cb_num = pred_num.max(dim=1)[1]
             train_pred_num.append(cb_num.detach().cpu().numpy())
-            train_true_num.append(num.cpu().numpy())
-            pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
-            batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
-            correct = np.sum(pred_choice == batch_label)
-            total_correct += correct
-            total_seen += (batch_size * args.num_points)
-            for l in range(num_class):
-                total_correct_class[l] += np.sum((pred_choice == l) & (batch_label == l))    # Intersection
-                total_iou_deno_class[l] += np.sum((pred_choice == l) | (batch_label == l))   # Union
-        
+            train_true_num.append(num.cpu().numpy())      
             sd1 = Head.state_dict()            
             Head.load_state_dict(sd1)
             opt2.zero_grad()
-            pointweise2, global_feature2 = Head(data.float())
-            # global_feature2 = Head(data.float())                       
+            pointweise2, global_feature2 = Head(data.float())                     
             type_one_hot = F.one_hot(ty.reshape(-1).long(), num_classes=5)
             num_one_hot = F.one_hot(num.reshape(-1).long(), num_classes=3)
             pred_attr = Tail2(global_feature2, type_one_hot.float(), num_one_hot.float())          
@@ -184,10 +190,6 @@ def train(args, io):
             if opt1.param_groups[0]['lr'] < 1e-5:
                 for param_group in opt1.param_groups:
                     param_group['lr'] = 1e-5
-
-        mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float64) + 1e-6))
-        cb_iou = total_correct_class[6]/float(total_iou_deno_class[6])
-        bolt_iou = (total_correct_class[5] + total_correct_class[6])/(float(total_iou_deno_class[5]) + float(total_iou_deno_class[6]))
         train_pred_cls = np.concatenate(train_pred_cls)
         train_true_cls = np.concatenate(train_true_cls)
         train_type_cls = accuracy_score(train_true_cls, train_pred_cls)
@@ -200,8 +202,18 @@ def train(args, io):
         train_bpos_error = np.mean(train_bpos)
         train_bpos_xz_error = np.mean(train_bpos_xz)
         train_mrot_error = np.mean(train_mrot)
-        outstr='Train %d, Loss: %.6f, seg acc: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, '%(epoch, 
-            train_loss*1.0/count, total_correct/float(total_seen), train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error)
+        if args.with_seg is True:
+            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float64) + 1e-6))
+            cb_iou = total_correct_class[6]/float(total_iou_deno_class[6])
+            bolt_iou = (total_correct_class[5] + total_correct_class[6])/(float(total_iou_deno_class[5]) + float(total_iou_deno_class[6]))
+            writer.add_scalar('mIoU/Train', mIoU, epoch)
+            writer.add_scalar('Cbolt_IoU/Train', cb_iou, epoch)
+            writer.add_scalar('Bolt_IoU/Train', bolt_iou, epoch)
+            outstr='Train %d, Loss: %.6f, mIoU:%.5f, cb IoU:%.5f, bolt IoU:%.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
+                train_loss*1.0/count, mIoU, cb_iou, bolt_iou, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error, train_mrot_error)
+        else:
+            outstr='Train %d, Loss: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz mdist: %5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
+                train_loss*1.0/count, train_type_cls, train_num_acc, train_profile_error, train_gpos_error, train_gpos_xz_error, train_bpos_error, train_mrot_error)
         io.cprint(outstr)
         
         writer.add_scalar('learning rate/lr1', opt1.param_groups[0]['lr'], epoch)
@@ -209,9 +221,6 @@ def train(args, io):
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Train', train_type_cls, epoch)
         writer.add_scalar('Cbolt_Num/Train', train_num_acc, epoch)
-        writer.add_scalar('mIoU/Train', mIoU, epoch)
-        writer.add_scalar('Cbolt_IoU/Train', cb_iou, epoch)
-        writer.add_scalar('Bolt_IoU/Train', bolt_iou, epoch)
         writer.add_scalar('Profile/Train', train_profile_error, epoch)
         writer.add_scalar('Gear_Pos/Train', train_gpos_error, epoch)
         writer.add_scalar('Gear_Pos_XZ/Train', train_gpos_xz_error, epoch)
@@ -219,15 +228,7 @@ def train(args, io):
         writer.add_scalar('Bolt_Pos_XZ/Train', train_bpos_xz_error, epoch)
         writer.add_scalar('Motor_Rot/Train', train_mrot_error, epoch)
 
-        if train_loss/count <= best_mse:
-            best_mse = train_loss/count
-            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
-            torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
-            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict()}
-            torch.save(state2, 'outputs/%s/%s/%s/models/best_tail1.t7' % (args.model, args.exp_name, args.change))
-            state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
-            torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
-            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
+        
             
         ####################
         # Test
@@ -261,15 +262,20 @@ def train(args, io):
             batch_size = data.size()[0]
             num = torch.sub(num, 3)
             pointweise, global_feature = Head(data.float())
-            pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
-            # global_feature = Head(data.float())
-            # pred_ty, pred_num = Tail1(global_feature)
-            pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
-            pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
-            batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
-            correct = np.sum(pred_choice == batch_label)
-            total_correct += correct
-            total_seen += batch_size * args.num_points
+            if args.with_seg is True:
+                pred_seg, pred_ty, pred_num = Tail1(pointweise, global_feature)
+                pred_seg = pred_seg.permute(0, 2, 1).contiguous().view(-1, num_class)
+                pred_choice = pred_seg.cpu().data.max(1)[1].numpy()
+                batch_label = seg.view(-1, 1)[:, 0].cpu().data.numpy()
+                correct = np.sum(pred_choice == batch_label)
+                total_correct += correct
+                total_seen += batch_size * args.num_points
+                for l in range(num_class):
+                    total_seen_class[l] += np.sum(batch_label == l)
+                    total_correct_class_[l] += np.sum((pred_choice == l) & (batch_label == l))     ### Intersection
+                    total_iou_deno_class_[l] += np.sum((pred_choice == l) | (batch_label == l))    ### Union
+            else:
+                pred_ty, pred_num = Tail1(global_feature)
             logits = pred_ty.max(dim=1)[1]
             test_pred_cls.append(logits.detach().cpu().numpy())
             test_true_cls.append(ty.cpu().numpy())
@@ -282,12 +288,7 @@ def train(args, io):
             loss = criterion2(pred_attr.view(-1, 28), attr.view(-1, 28), mask=m)
             count += batch_size
             test_loss += loss.item() * batch_size
-            # tmp, _ = np.histogram(batch_label, range(num_class + 1))
-            # labelweights += tmp
-            for l in range(num_class):
-                total_seen_class[l] += np.sum(batch_label == l)
-                total_correct_class_[l] += np.sum((pred_choice == l) & (batch_label == l))     ### Intersection
-                total_iou_deno_class_[l] += np.sum((pred_choice == l) | (batch_label == l))    ### Union
+            
             pred_np = pred_attr.detach().cpu().numpy()
             attr_np = attr.view(batch_size, -1).cpu().numpy()
             mask_np = mask.view(batch_size, -1).cpu().numpy()     # Size(16, 28)
@@ -312,39 +313,50 @@ def train(args, io):
             true_mrot = np.array([x[25: 28] for x in attr_np])     # Size(16, 3)
             pred_mrot = np.array([x[25: 28] for x in pred_np])
             test_mrot.append(np.mean(np.abs(true_mrot - pred_mrot)))
-
         test_pred_cls = np.concatenate(test_pred_cls)
         test_true_cls = np.concatenate(test_true_cls)
         test_type_cls = accuracy_score(test_true_cls, test_pred_cls)
         test_pred_num = np.concatenate(test_pred_num)
         test_true_num = np.concatenate(test_true_num)
         test_num_acc = accuracy_score(test_true_num, test_pred_num)
-        # labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
-        test_mIoU = np.mean(np.array(total_correct_class_) / (np.array(total_iou_deno_class_, dtype=np.float64) + 1e-6))
-        test_cb_iou = total_correct_class_[6] / float(total_iou_deno_class_[6])
-        test_bolt_iou = (total_correct_class_[5] + total_correct_class_[6]) / (float(total_iou_deno_class_[5]) + float(total_iou_deno_class_[6]))
         test_profile_error = np.mean(test_profile_error)
         test_gpos_xz_error = np.mean(test_gpos_xz)
         test_gpos_error = np.mean(test_gpos)
         test_bpos_error = np.mean(test_bpos)
         test_bpos_xz_error = np.mean(test_bpos_xz)
         test_mrot_error = np.mean(test_mrot)
-        outstr_val = 'Test %d, Loss: %.6f, seg acc: %.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f'%(epoch, 
-            test_loss*1.0/count, total_correct/float(total_seen), test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error)
+        if args.with_seg is True:
+            test_mIoU = np.mean(np.array(total_correct_class_) / (np.array(total_iou_deno_class_, dtype=np.float64) + 1e-6))
+            test_cb_iou = total_correct_class_[6] / float(total_iou_deno_class_[6])
+            test_bolt_iou = (total_correct_class_[5] + total_correct_class_[6]) / (float(total_iou_deno_class_[5]) + float(total_iou_deno_class_[6]))
+            writer.add_scalar('mIoU/Test', test_mIoU, epoch)
+            writer.add_scalar('Cbolt_IoU/Test', test_cb_iou, epoch)
+            writer.add_scalar('Bolt_IoU/Test', test_bolt_iou, epoch)     
+            outstr_val = 'Test %d, Loss: %.6f, mIoU:%.5f, CB IoU:%.5f, Bolt IoU:%.5f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
+                test_loss*1.0/count, test_mIoU, test_cb_iou, test_bolt_iou, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error, test_mrot_error)
+        else:
+            outstr_val = 'Test %d, Loss: %.6f, type cls acc: %.5f, cbolts num acc: %.5f, profile error: %.5f, gear pos mdist: %.5f, gear xz midst: %.5f, cbolt mdist: %.5f, motor rot:%.5f'%(epoch, 
+                test_loss*1.0/count, test_type_cls, test_num_acc, test_profile_error, test_gpos_error, test_gpos_xz_error, test_bpos_error, test_mrot_error)
         io.cprint(outstr_val) 
         io.cprint('\n\n')
         writer.add_scalar('Loss/test loss', test_loss*1.0/count, epoch)
         writer.add_scalar('Type cls/Test', test_type_cls, epoch)
-        writer.add_scalar('Cbolt_Num/Test', test_num_acc, epoch)
-        writer.add_scalar('mIoU/Test', test_mIoU, epoch)
-        writer.add_scalar('Cbolt_IoU/Test', test_cb_iou, epoch)
-        writer.add_scalar('Bolt_IoU/Test', test_bolt_iou, epoch)
+        writer.add_scalar('Cbolt_Num/Test', test_num_acc, epoch)   
         writer.add_scalar('Profile/Test', test_profile_error, epoch)
         writer.add_scalar('Gear_Pos/Test', test_gpos_error, epoch)
         writer.add_scalar('Gear_Pos_XZ/Test', test_gpos_xz_error, epoch)
         writer.add_scalar('Bolt_Pos/Test', test_bpos_error, epoch)
         writer.add_scalar('Bolt_Pos_XZ/Test', test_bpos_xz_error, epoch)
         writer.add_scalar('Motor_Rot/Test', test_mrot_error, epoch)
+        if test_loss/count <= best_mse:
+            best_mse = test_loss/count
+            state1 = {'epoch': epoch, 'model_state_dict': Head.state_dict()}
+            torch.save(state1, 'outputs/%s/%s/%s/models/best_head.t7' % (args.model, args.exp_name, args.change))
+            state2 = {'epoch': epoch, 'model_state_dict': Tail1.state_dict()}
+            torch.save(state2, 'outputs/%s/%s/%s/models/best_tail1.t7' % (args.model, args.exp_name, args.change))
+            state3 = {'epoch': epoch, 'model_state_dict': Tail2.state_dict()}
+            torch.save(state3, 'outputs/%s/%s/%s/models/best_tail2.t7' % (args.model, args.exp_name, args.change))
+            io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Multi Attributes Regression')
@@ -396,6 +408,8 @@ if __name__ == "__main__":
                         help='Which datablocks to use for validation')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--with_seg', type=bool, default=False,
+                        help='semantic segmentation in tail1 block')
     args = parser.parse_args()
     
     _init_()
