@@ -15,7 +15,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_attr import MotorAttribute
-from models import DGCNN_net, DGCNN_cls
+from models import DGCNN_net
 from utils import mean_loss, IOStream, normalize_data, distance, mean_relative_error
 from torch.utils.tensorboard import SummaryWriter
 
@@ -55,7 +55,7 @@ def train(args, io):
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     elif args.opt == 'adamw':
         print("Use AdamW")
-        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        opt = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
@@ -134,7 +134,8 @@ def train(args, io):
         train_bpos_xz_error = np.mean(train_bpos_xz)
         train_mrot_error = np.mean(train_mrot)
 
-        outstr = 'Train %d, Loss: %.6f, profile error: %.5f, gear pos mdist: %.5f, cbolt mdist: %.5f'%(epoch, train_loss/count, train_profile_error, train_gpos_error, train_bpos_error)
+        outstr = 'Train%d, Loss:%.6f, SRE:%.6f, GLE:%.6f, GLExz:%.6f, MRE:%.6f , SLE:%.6f, SLExz:%.6f'%(epoch, 
+            train_loss/count, train_profile_error, train_gpos_error, train_gpos_xz_error, train_mrot_error, train_bpos_error, train_bpos_xz_error)
         io.cprint(outstr)
         writer.add_scalar('learning rate/lr', opt.param_groups[0]['lr'], epoch)
         writer.add_scalar('Loss/train loss', train_loss*1.0/count, epoch)
@@ -204,8 +205,9 @@ def train(args, io):
             state = {'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': opt.state_dict()}
             torch.save(state, 'outputs/%s/%s/%s/models/attr_best.t7' % (args.model, args.exp_name, args.change))
         io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
-        outstr = 'Test %d, Loss: %.6f, profile error: %.5f, gear pos mdist: %.5f, cbolt mdist: %.5f' % (epoch, val_loss*1.0/count, test_profile_error, test_gpos_error, test_bpos_error)
-        io.cprint(outstr)
+        val_outstr = 'Train%d, Loss:%.6f, SRE:%.6f, GLE:%.6f, GLExz:%.6f, MRE:%.6f , SLE:%.6f, SLExz:%.6f'%(epoch, 
+            val_loss/count, test_profile_error, test_gpos_error, test_gpos_xz_error, test_mrot_error, test_bpos_error, test_bpos_xz_error)
+        io.cprint(val_outstr)
         io.cprint('\n\n')
         writer.add_scalar('Loss/test loss', val_loss*1.0/count, epoch)
         writer.add_scalar('Profile/Test', test_profile_error, epoch)
