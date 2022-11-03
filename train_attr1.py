@@ -205,7 +205,7 @@ def train(args, io):
             state = {'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': opt.state_dict()}
             torch.save(state, 'outputs/%s/%s/%s/models/attr_best.t7' % (args.model, args.exp_name, args.change))
         io.cprint('Best MSE at %d epoch with Loss %.6f' % (epoch, best_mse))
-        val_outstr = 'Train%d, Loss:%.6f, SRE:%.6f, GLE:%.6f, GLExz:%.6f, MRE:%.6f , SLE:%.6f, SLExz:%.6f'%(epoch, 
+        val_outstr = 'Test%d, Loss:%.6f, SRE:%.6f, GLE:%.6f, GLExz:%.6f, MRE:%.6f , SLE:%.6f, SLExz:%.6f'%(epoch, 
             val_loss/count, test_profile_error, test_gpos_error, test_gpos_xz_error, test_mrot_error, test_bpos_error, test_bpos_xz_error)
         io.cprint(val_outstr)
         io.cprint('\n\n')

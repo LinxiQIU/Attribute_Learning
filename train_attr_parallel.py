@@ -67,7 +67,7 @@ def train(args, io):
         opt = optim.AdamW(params, lr=args.lr, weight_decay=1e-2)
     
     if args.scheduler == 'cos':
-        scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-5)
+        scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=1e-6)
     elif args.scheduler == 'step':
         scheduler = StepLR(opt, step_size=60, gamma=0.2)  
     print("Starting from scratch!")
