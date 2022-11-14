@@ -1,6 +1,6 @@
 # Attribute_Learning
 This project is my master thesis and also a sub-project of the research project **AgiProbot** from KIT and Bosch. We develop a benchmark including 2D synthetic image datasets and 3D synthetic point cloud datasets. In this part, we are going to use DGCNN as the backbone for encoding point-wise features and a global feature. We consider the classification-segmentation parallel training as a meta-block, note that since the one-hot attributes *T* and *N_s* indicate the validity of some other attributes, apart from the block of motor type classification, another block for classifying the number of cover screws has also been included in the meta-block. The regression tasks compose a second tail block.
-![](https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/mtl_reg.png)
+<img src="https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/mtl_reg.png" width="700" height="370">
 
 ## Environments Requirements
 
@@ -13,7 +13,7 @@ PyTorch = 1.6
 The mentioned API are the basic API. In the training process,if there is warning that some modul is missing. you could direct use pip install to install specific modul.
 
 ## Regression Evaluation Metrics
-<img src="https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/attr_metrics.jpg" width="180" height="200">
+<img src="https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/attr_metrics.jpg" width="400" height="500">
 
 (1) **Size Relative Error (SRE)**. This metric evaluates the predicted overall motor size using four key attributes which represent the main body of motors: the lengths of the bottom and the sub-bottom part, pole pot, and the diameters of the gear regions.
 
