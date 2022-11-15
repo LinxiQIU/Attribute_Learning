@@ -14,7 +14,7 @@ PyTorch = 1.6
 The mentioned API are the basic API. In the training process,if there is warning that some modul is missing. you could direct use pip install to install specific modul.
 
 ## Regression Evaluation Metrics
-<img src="https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/attr_metrics.jpg" width="400" height="500">
+<img src="https://github.com/LinxiQIU/Attribute_Learning/blob/main/images/metrics.png" width="400" height="500">
 
 (1) **Size Relative Error (SRE)**. This metric evaluates the predicted overall motor size using four key attributes which represent the main body of motors: the lengths of the bottom and the sub-bottom part, pole pot, and the diameters of the gear regions.
 
