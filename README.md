@@ -47,6 +47,8 @@ Explanation of the important parameters:
 
 * change: give the information of a specific experiment (e.g. the changes of batch_size, epochs or optimizer)
 
+* with_seg: whether to perform segmentation in the meta block 
+
 * root: the root directory of training dataset
 
 
